@@ -1,4 +1,5 @@
 from pathlib import Path
+from uuid import uuid4
 import streamlit as st
 from groq import Groq, AuthenticationError, APITimeoutError, RateLimitError, APIConnectionError, APIStatusError
 from rag import (MODEL, PIPELINE_VERSION, LLMParseError, LLMValidationError, LLMNoSelectionError, Retriever, extract_names, fingerprint,
@@ -8,7 +9,7 @@ from diagnostics import log_event, log_failure
 from groq_support import smoke_test
 
 ROOT = Path(__file__).resolve().parent
-st.set_page_config(page_title='มีอะไร ทำอะไรดี', page_icon='🍲', layout='centered')
+st.set_page_config(page_title='มีอะไร ทำอะไรดี', page_icon='🍲', layout='centered', initial_sidebar_state='auto')
 
 @st.cache_resource(max_entries=1)
 def embedding_model(model_name):
@@ -26,10 +27,10 @@ def configuration():
 from presentation import LiveRecipeAdapter, question_kind
 from request_state import plan_request
 from ui.styles import CSS
-from ui.components import samples, answer_message
+from ui.components import samples, chat_turn, evidence_panel
 
 st.html('<style>' + CSS + '</style>')
-for name, default in [('messages', []), ('previous', []), ('pantry', set()), ('selected_recipe_id', None)]:
+for name, default in [('messages', []), ('previous', []), ('pantry', set()), ('selected_recipe_id', None), ('selected_evidence_turn', None), ('selected_evidence_recipe', None)]:
     if name not in st.session_state:
         st.session_state[name] = default
 for name, value in st.session_state.pop('pending_form_values', {}).items():
@@ -40,6 +41,9 @@ def reset():
                  'form_ingredients', 'form_seasonings', 'form_equipment', 'pending_form_values']:
         st.session_state.pop(name, None)
     st.session_state.pop('form_snapshot', None)
+    for name in ['selected_evidence_turn', 'selected_evidence_recipe', 'evidence_turn_picker', 'evidence_recipe_picker']:
+        st.session_state.pop(name, None)
+    st.session_state.sidebar_tabs = 'ของที่มี'
 
 def select_recipe(recipe_id):
     st.session_state.selected_recipe_id = recipe_id
@@ -48,13 +52,23 @@ def clarify(recipe_id, query):
     select_recipe(recipe_id)
     st.session_state.pending_query = query
 
+def select_evidence(turn_id, recipe_id=None):
+    st.session_state.selected_evidence_turn = turn_id
+    st.session_state.selected_evidence_recipe = recipe_id
+    st.session_state.sidebar_tabs = 'หลักฐานและแหล่งที่มา'
+    st.toast('เลือกหลักฐานแล้ว เปิดแผงด้านข้างด้วยลูกศรมุมซ้ายบนหากแผงปิดอยู่')
+
+# Assign stable IDs once for older sessions; new turns use UUIDs.
+for message in st.session_state.messages:
+    message.setdefault('id', uuid4().hex)
+
 left, right = st.columns([5, 1], gap='small')
 with left:
     st.title('มีอะไร ทำอะไรดี')
     st.write('ค้นเมนูจากวัตถุดิบที่มี พร้อมสูตรและแหล่งอ้างอิง')
 with right:
     st.button('เริ่มใหม่', key='reset_header', on_click=reset, width='stretch', wrap=True)
-st.caption('สูตรตัวอย่างสร้างโดย AI ต้องตรวจทานก่อนใช้จริง')
+st.caption('สูตรตัวอย่างสร้างโดย AI ต้องตรวจทานก่อนใช้จริง • เปิด/ปิดแผงข้างด้วยลูกศรมุมซ้ายบน')
 try:
     key, model_name = configuration()
 except ValueError as error:
@@ -70,21 +84,24 @@ names = {i['name'] for r in recipes for i in r['ingredients']}
 seasonings = {i['name'] for r in recipes for i in r['ingredients'] if i['name'] in r['_sections']['เครื่องปรุง']}
 equipment_names = {e for r in recipes for e in r['equipment']}
 search_query = None
-with st.expander('วัตถุดิบ เครื่องปรุง และอุปกรณ์ของคุณ', expanded=False):
-    a, b = st.columns(2)
-    with a:
-        ingredients_text = st.text_area('วัตถุดิบที่มี', key='form_ingredients', placeholder='ไข่ ข้าวสวย ต้นหอม')
-    with b:
-        seasonings_text = st.text_area('เครื่องปรุงที่มี', key='form_seasonings', placeholder='ซีอิ๊วขาว น้ำมันพืช')
-    equipment = st.multiselect('อุปกรณ์ที่มี', sorted(equipment_names), key='form_equipment')
-    st.caption('ไม่เลือกอุปกรณ์ = ยังไม่ได้ระบุและไม่กรองอุปกรณ์ หากเลือก ให้ระบุทั้งหมดที่มี รวมถ้วย ช้อน มีด ตามจริง')
-    st.caption('ตรวจชื่อวัตถุดิบรวมเครื่องปรุง ยังไม่ยืนยันว่าปริมาณที่มีเพียงพอ')
-    if st.button('ค้นเมนูจากของที่มี', key='search_saved', type='primary', width='stretch'):
-        search_query = 'ค้นเมนูจากของที่มี'
-with st.expander('ตั้งค่าการค้นหา'):
-    top_k = st.slider('จำนวนส่วนเอกสารที่ค้นคืน (Top-K)', 1, 10, 3, key='search_top_k')
-    st.caption('K คือจำนวน chunks ที่ใช้ตั้งต้นบริบท ไม่ใช่จำนวนการ์ดเมนู สูตรเต็มของเมนูที่เกี่ยวข้องจะเพิ่มเป็นบริบทอีกส่วน')
 with st.sidebar:
+    st.header('แผงข้อมูล')
+    pantry_panel, settings_panel, sources_panel = st.tabs(
+        ['ของที่มี', 'ตั้งค่า Top-K', 'หลักฐานและแหล่งที่มา'], key='sidebar_tabs', on_change='rerun')
+    with pantry_panel:
+        st.caption('บันทึกของที่มีไว้ที่นี่ หรือระบุวัตถุดิบโดยตรงในแชตได้')
+        ingredients_text = st.text_area('วัตถุดิบที่มี', key='form_ingredients', placeholder='ไข่ ข้าวสวย ต้นหอม')
+        seasonings_text = st.text_area('เครื่องปรุงที่มี', key='form_seasonings', placeholder='ซีอิ๊วขาว น้ำมันพืช')
+        equipment = st.multiselect('อุปกรณ์ที่มี', sorted(equipment_names), key='form_equipment')
+        st.caption('ไม่เลือกอุปกรณ์ = ยังไม่ได้ระบุ / ไม่กรอง หากเลือก ให้ระบุทั้งหมดที่มีรวมถ้วย ช้อน มีด')
+        st.caption('ตรวจชื่อวัตถุดิบ ไม่ยืนยันว่าปริมาณที่มีเพียงพอ')
+        if st.button('ค้นเมนูจากของที่มี', key='search_saved', type='primary', width='stretch'):
+            search_query = 'ค้นเมนูจากของที่มี'
+    with settings_panel:
+        top_k = st.slider('จำนวนส่วนเอกสารที่ค้นคืน (Top-K)', 1, 10, 3, key='search_top_k')
+        st.caption('K นับส่วนเอกสารที่ค้นคืน ไม่ใช่จำนวนการ์ดเมนู สูตรเต็มที่เติมบริบทแสดงแยกต่างหาก')
+    with sources_panel:
+        evidence_panel(st.session_state.messages)
     with st.expander('สำหรับนักพัฒนา'):
         st.caption(f'คลังสูตร {len(recipes)} เมนู · CPU · {model_name}')
         st.caption(f'เวอร์ชัน {PIPELINE_VERSION} · index {index_key[:12]}')
@@ -103,22 +120,14 @@ if selected_id:
     st.info(f'กำลังถามต่อเกี่ยวกับ {selected_name} [{selected_id}]')
     st.button('ยกเลิกการเลือกเมนู', on_click=select_recipe, args=(None,))
 for message in st.session_state.messages:
-    with st.chat_message(message['role']):
-        if message['role'] == 'user':
-            st.markdown(message['content'])
-        else:
-            answer_message(message, select_recipe, clarify)
-if st.session_state.messages:
-    with st.expander('คำถามตัวอย่าง'):
-        example_query = samples()
-else:
-    example_query = samples()
-query = st.chat_input('พิมพ์วัตถุดิบ หรือถามเกี่ยวกับสูตร…', max_chars=2000, submit_mode='disable') or search_query or example_query or st.session_state.pop('pending_query', None)
+    chat_turn(message, select_recipe, clarify, select_evidence)
+example_query = samples() if not st.session_state.messages else None
+query = st.chat_input('พิมพ์วัตถุดิบ หรือถามเกี่ยวกับสูตร…', max_chars=2000, submit_mode='disable', key='chat_query') or search_query or example_query or st.session_state.pop('pending_query', None)
 if query:
-    st.session_state.messages.append(dict(role='user', content=query))
-    with st.chat_message('user'):
-        st.markdown(query)
-    answer = dict(role='assistant', id=str(len(st.session_state.messages)), query=query, content='')
+    user_message = dict(role='user', id=uuid4().hex, content=query)
+    st.session_state.messages.append(user_message)
+    chat_turn(user_message, select_recipe, clarify, select_evidence)
+    answer = dict(role='assistant', id=uuid4().hex, query=query, content='')
     if not key:
         answer['content'] = 'ยังไม่ได้เรียก LLM กรุณาตั้งค่า GROQ_API_KEY ตามข้อความด้านบน'
     else:

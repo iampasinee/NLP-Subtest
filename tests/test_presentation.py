@@ -96,7 +96,8 @@ def test_ui_fact_has_evidence_without_full_recipe(monkeypatch, model):
     assert 'ไข่ไก่ 1 ฟอง' in at.session_state['messages'][-1]['content']
     assert any('R04' in c.value and 'recipes.md' in c.value for c in at.caption)
     assert not any(e.label == 'ดูสูตรเต็ม' for e in at.expander)
-    assert any(e.label.startswith('ดูหลักฐาน') for e in at.expander)
+    assert any(b.label == 'ดูหลักฐาน' for b in at.button)
+    assert not any(e.label.startswith('ดูหลักฐาน') for e in at.main.expander)
     assert at.session_state['pantry'] == set()
     at.chat_input[0].set_value('ใช้ไข่กี่ฟอง').run()
     assert not at.exception

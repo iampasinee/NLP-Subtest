@@ -29,13 +29,45 @@ div[class*="st-key-sample_card_"] { height: 100%; }
   padding: 8px 12px; font-size: .8rem; color: #655C54; margin-top: 6px; }
 button[kind="primary"] { background: #A8421B; border-color: #A8421B; color: white; border-radius: 10px; }
 button[kind="secondary"] { border-radius: 10px; }
-[data-testid="stChatMessage"] { background: transparent; padding: .8rem 0; }
+/* Role styling only affects keyed conversation turns, never the sidebar. */
+.stMain div[class*="st-key-chat_user_"] [data-testid="stChatMessage"],
+.stMain div[class*="st-key-chat_assistant_"] [data-testid="stChatMessage"] {
+  background: transparent; padding: .5rem 0; gap: .6rem; align-items: flex-start;
+}
+.stMain div[class*="st-key-chat_user_"] [data-testid="stChatMessage"] {
+  flex-direction: row-reverse;
+}
+.stMain div[class*="st-key-chat_user_"] [data-testid="stChatMessageContent"] {
+  flex: 0 1 auto; width: fit-content; max-width: calc(100% - 3rem); min-width: 0;
+}
+.stMain div[class*="st-key-chat_assistant_"] [data-testid="stChatMessageContent"] {
+  min-width: 0; max-width: calc(100% - 3rem);
+}
+.chat-user-bubble {
+  width: fit-content; max-width: 100%; box-sizing: border-box; border-radius: 16px;
+  padding: .7rem 1rem; background: #292524; color: #FFFFFF;
+  white-space: pre-wrap; overflow-wrap: anywhere; text-align: left;
+  line-height: 1.7; font-family: 'Sarabun', Tahoma, 'Noto Sans Thai', sans-serif;
+}
+.stMain div[class*="st-key-assistant_bubble_"] {
+  width: fit-content; max-width: 100%; box-sizing: border-box; border: 1px solid #E6DDD2;
+  border-radius: 16px; padding: .7rem 1rem; background: #FFFFFF; color: #292524;
+  text-align: left; overflow-wrap: anywhere; min-width: 0;
+}
+.stMain div[class*="st-key-assistant_bubble_"] p:last-child { margin-bottom: 0; }
+/* Sidebar tabs wrap their Thai labels instead of creating a scrolling header. */
+[data-testid="stSidebar"] [data-testid="stTabs"] [role="tablist"] { flex-wrap: wrap; }
+[data-testid="stSidebar"] [role="tab"] { white-space: normal; height: auto; min-height: 2.5rem; }
+
 [data-testid="stChatInput"] { border: 1px solid #D7B9A6; border-radius: 14px; }
 [data-testid="stExpander"] { border-color: #E6DDD2; border-radius: 12px; background: white; }
 [data-testid="stMarkdownContainer"] p, [data-testid="stCaptionContainer"],
 .ingredient-panel, .card-title, .badge { overflow-wrap: anywhere; }
 @media (max-width: 640px) {
   .stMainBlockContainer { padding: 4rem 1rem 8rem; }
+  .chat-user-bubble, .stMain div[class*="st-key-assistant_bubble_"] { padding: .65rem .8rem; }
+  .stMain div[class*="st-key-chat_user_"] [data-testid="stChatMessage"],
+  .stMain div[class*="st-key-chat_assistant_"] [data-testid="stChatMessage"] { gap: .4rem; }
   div[class*="st-key-recipe_card_"], div[class*="st-key-sample_card_"] { padding: 14px; }
   [data-testid="stMarkdownContainer"] table { width: 100%; }
 }
