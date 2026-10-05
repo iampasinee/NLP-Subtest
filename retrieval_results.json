@@ -1,7 +1,7 @@
 {
   "mode": "real_semantic_retrieval_no_llm",
-  "passed": 20,
-  "total": 20,
+  "passed": 28,
+  "total": 28,
   "cases": [
     {
       "id": "T01",
@@ -127,6 +127,56 @@
       "actual_recipe_ids": [
         "R20"
       ],
+      "passed": true
+    },
+    {
+      "id": "S01",
+      "actual_recipe_ids": [
+        "R01",
+        "R05",
+        "R02"
+      ],
+      "passed": true
+    },
+    {
+      "id": "S02",
+      "actual_recipe_ids": [
+        "R04"
+      ],
+      "passed": true
+    },
+    {
+      "id": "S03",
+      "actual_recipe_ids": [
+        "R01"
+      ],
+      "passed": true
+    },
+    {
+      "id": "S04",
+      "actual_recipe_ids": [
+        "R04"
+      ],
+      "passed": true
+    },
+    {
+      "id": "S05",
+      "actual_recipe_ids": [],
+      "passed": true
+    },
+    {
+      "id": "S06",
+      "actual_recipe_ids": [],
+      "passed": true
+    },
+    {
+      "id": "S07",
+      "actual_recipe_ids": [],
+      "passed": true
+    },
+    {
+      "id": "S08",
+      "actual_recipe_ids": [],
       "passed": true
     }
   ]

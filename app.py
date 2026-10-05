@@ -24,6 +24,7 @@ def configuration():
     return read_configuration(st.secrets)
 
 from presentation import LiveRecipeAdapter, question_kind
+from request_state import plan_request
 from ui.styles import CSS
 from ui.components import samples, answer_message
 
@@ -38,6 +39,7 @@ def reset():
     for name in ['messages', 'previous', 'pantry', 'selected_recipe_id', 'pending_query',
                  'form_ingredients', 'form_seasonings', 'form_equipment', 'pending_form_values']:
         st.session_state.pop(name, None)
+    st.session_state.pop('form_snapshot', None)
 
 def select_recipe(recipe_id):
     st.session_state.selected_recipe_id = recipe_id
@@ -51,7 +53,7 @@ with left:
     st.title('มีอะไร ทำอะไรดี')
     st.write('ค้นเมนูจากวัตถุดิบที่มี พร้อมสูตรและแหล่งอ้างอิง')
 with right:
-    st.button('เริ่มใหม่', key='reset_header', on_click=reset, width='stretch')
+    st.button('เริ่มใหม่', key='reset_header', on_click=reset, width='stretch', wrap=True)
 st.caption('สูตรตัวอย่างสร้างโดย AI ต้องตรวจทานก่อนใช้จริง')
 try:
     key, model_name = configuration()
@@ -77,8 +79,11 @@ with st.expander('วัตถุดิบ เครื่องปรุง แ
     equipment = st.multiselect('อุปกรณ์ที่มี', sorted(equipment_names), key='form_equipment')
     st.caption('ไม่เลือกอุปกรณ์ = ยังไม่ได้ระบุและไม่กรองอุปกรณ์ หากเลือก ให้ระบุทั้งหมดที่มี รวมถ้วย ช้อน มีด ตามจริง')
     st.caption('ตรวจชื่อวัตถุดิบรวมเครื่องปรุง ยังไม่ยืนยันว่าปริมาณที่มีเพียงพอ')
-    if st.button('ค้นเมนูจากของที่มี', type='primary', width='stretch'):
-        search_query = 'มี ' + ingredients_text + ' ' + seasonings_text + ' ทำอะไรได้บ้าง'
+    if st.button('ค้นเมนูจากของที่มี', key='search_saved', type='primary', width='stretch'):
+        search_query = 'ค้นเมนูจากของที่มี'
+with st.expander('ตั้งค่าการค้นหา'):
+    top_k = st.slider('จำนวนส่วนเอกสารที่ค้นคืน (Top-K)', 1, 10, 3, key='search_top_k')
+    st.caption('K คือจำนวน chunks ที่ใช้ตั้งต้นบริบท ไม่ใช่จำนวนการ์ดเมนู สูตรเต็มของเมนูที่เกี่ยวข้องจะเพิ่มเป็นบริบทอีกส่วน')
 with st.sidebar:
     with st.expander('สำหรับนักพัฒนา'):
         st.caption(f'คลังสูตร {len(recipes)} เมนู · CPU · {model_name}')
@@ -103,7 +108,11 @@ for message in st.session_state.messages:
             st.markdown(message['content'])
         else:
             answer_message(message, select_recipe, clarify)
-example_query = samples() if not st.session_state.messages else None
+if st.session_state.messages:
+    with st.expander('คำถามตัวอย่าง'):
+        example_query = samples()
+else:
+    example_query = samples()
 query = st.chat_input('พิมพ์วัตถุดิบ หรือถามเกี่ยวกับสูตร…', max_chars=2000, submit_mode='disable') or search_query or example_query or st.session_state.pop('pending_query', None)
 if query:
     st.session_state.messages.append(dict(role='user', content=query))
@@ -114,25 +123,31 @@ if query:
         answer['content'] = 'ยังไม่ได้เรียก LLM กรุณาตั้งค่า GROQ_API_KEY ตามข้อความด้านบน'
     else:
         stage = 'index'
+        adapter = None
         try:
             with st.spinner('กำลังค้นสูตรและตรวจข้อมูล…'):
                 retriever = knowledge_index(index_key)
                 form_pantry = extract_names(ingredients_text + ' ' + seasonings_text, names)
-                # Asking an ingredient's quantity is not a claim of owning it.
-                pantry = form_pantry if question_kind(query) == 'fact' else update_pantry(query, form_pantry, names, recipes)
+                form_changed = st.session_state.get('form_snapshot', sorted(form_pantry)) != sorted(form_pantry)
+                current = form_pantry if form_changed else st.session_state.pantry
+                plan = plan_request(query, form_pantry, current, recipes)
+                if plan['intent'] in ['saved_search', 'addition']:
+                    form_plan = plan_request(ingredients_text + ' ' + seasonings_text, set(), set(), recipes)
+                    plan['unknown'] = list(dict.fromkeys(plan['unknown'] + form_plan['unknown']))
+                st.session_state.form_snapshot = sorted(form_pantry)
+                pantry = plan['pantry']
                 st.session_state.pantry = pantry
+                if plan['intent'] in ['new_search', 'saved_search', 'addition']:
+                    st.session_state.selected_recipe_id = None
+                    st.session_state.previous = []
                 eq = set(equipment)
-                pending = {}
-                if pantry != form_pantry:
-                    pending['form_ingredients'] = ', '.join(sorted(pantry - seasonings))
-                    pending['form_seasonings'] = ', '.join(sorted(pantry & seasonings))
                 if not eq and 'ไมโครเวฟ' in query and any(s in query for s in ['เฉพาะ', 'เท่านั้น']):
                     eq = {'ไมโครเวฟ'}
-                    pending['form_equipment'] = list(eq)
-                st.session_state.pending_form_values = pending
+                answer['request'] = dict(intent=plan['intent'], ingredients=sorted(pantry), equipment=sorted(eq), top_k=top_k)
                 stage = 'retrieval_or_groq'
-                response = LiveRecipeAdapter(retriever, Groq(api_key=key, timeout=30, max_retries=0), model_name).answer_request(
-                    query, pantry, eq, st.session_state.previous, st.session_state.selected_recipe_id)
+                adapter = LiveRecipeAdapter(retriever, Groq(api_key=key, timeout=30, max_retries=0), model_name)
+                response = adapter.answer_request(
+                    query, pantry, eq, st.session_state.previous, st.session_state.selected_recipe_id, top_k=top_k, unknown=plan['unknown'])
                 answer['response'] = response
                 answer['content'] = response.get('content', response['answer'])
                 if response['status'] == 'ok':
@@ -170,5 +185,8 @@ if query:
             answer['content'] = 'โหลดโมเดลหรือค้นหาไม่สำเร็จ กรุณาตรวจ dependencies และการดาวน์โหลดโมเดลครั้งแรก'
     if 'response' not in answer and key:
         answer['response'] = dict(status='error', answer=answer['content'])
+        if adapter is not None and hasattr(adapter, 'last_trace'):
+            answer['response']['retrieval'] = adapter.last_trace
+            answer['response']['effective'] = answer.get('request', {})
     st.session_state.messages.append(answer)
     st.rerun()

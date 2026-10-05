@@ -10,3 +10,6 @@ test-results.local.json
 groq_diagnostics.local.json
 ui_live_results.local.json
 ui_live_logs.local.txt
+semantic_run.local.txt
+state_topk_live.local.json
+state_topk_live.local.txt

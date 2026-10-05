@@ -1,3 +1,5 @@
+ผลในรายงานนี้เป็นรอบ UI ก่อนเพิ่ม Top-K/แก้สถานะ ผลและโครงสร้างปัจจุบันดู STATE_TOPK_REPORT.md
+
 # ผลปรับ UI — 5 ตุลาคม 2569
 
 ปรับหน้า Streamlit เดิมเป็น “มีอะไร ทำอะไรดี” หลังอ่าน app.py/rag.py เดิม และ app.py, ui/styles.py, ui/components.py, services/adapter.py, INTEGRATION.md ของ ui-reference ไม่คัดลอก app.py ตัวอย่างทับระบบเดิม ตัวอย่างใช้ MockAdapter และตีความการไม่เลือกอุปกรณ์แบบ unrestricted จึงสร้าง LiveRecipeAdapter สำหรับระบบจริงแทน

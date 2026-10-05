@@ -149,3 +149,5 @@ def test_ui_distinguishes_groq_failure_from_no_document(monkeypatch, model, scen
     answer = at.session_state['messages'][-1]['content']
     assert expected in answer and answer != NO_DATA
     assert 'PRIVATE' not in answer
+    trace = at.session_state['messages'][-1]['response']['retrieval']
+    assert trace['top_k'] == 3 and len(trace['retrieved_chunks']) == 3

@@ -22,7 +22,7 @@ def main():
     with (ROOT / 'test_questions.csv').open(encoding='utf-8-sig', newline='') as f:
         for row in csv.DictReader(f):
             hits = candidates(retriever, row['question'], set(filter(None, row['pantry'].split('|'))),
-                              set(filter(None, row['equipment'].split('|'))), list(filter(None, row['previous_recipe_ids'].split('|'))))
+                              set(filter(None, row['equipment'].split('|'))), list(filter(None, row['previous_recipe_ids'].split('|'))), top_k=3)
             if live and hits:
                 hits = select_with_llm(client, config.get('GROQ_MODEL', DEFAULT_GROQ_MODEL), row['question'], hits)
             ids = [h['recipe']['recipe_id'] for h in hits]

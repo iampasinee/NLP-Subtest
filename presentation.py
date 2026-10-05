@@ -7,6 +7,13 @@ EXAMPLES = [
     ('🥚', 'เริ่มจากของที่มี', 'มีไข่ ข้าวสวย และต้นหอม ทำอะไรได้บ้าง'),
     ('🍲', 'ถามปริมาณตามสูตร', 'ไข่ตุ๋นไมโครเวฟใช้ไข่กี่ฟอง'),
     ('📖', 'เปิดขั้นตอนทำอาหาร', 'ข้าวผัดไข่ทำอย่างไร'),
+    ('🍳', 'ตรวจอุปกรณ์ตามสูตร', 'ไข่ตุ๋นไมโครเวฟใช้อุปกรณ์อะไร'),
+]
+
+UNANSWERABLE_EXAMPLES = [
+    ('❓', 'ไม่มีข้อมูลแคลอรี่', 'ข้าวผัดไข่มีกี่แคลอรี'),
+    ('❓', 'ไม่มีข้อมูลต้นทุน', 'ไข่ตุ๋นไมโครเวฟราคาเท่าไร'),
+    ('❓', 'ไม่มีสูตรในคลัง', 'ขอสูตรพิซซ่าไข่'),
 ]
 
 def question_kind(query):
@@ -18,7 +25,7 @@ def question_kind(query):
 
 def unsupported_information(query):
     return any(s in query for s in ['โภชนาการ', 'แคลอรี', 'แคลอรี่', 'โปรตีนกี่', 'แทนวัตถุดิบ',
-               'ใช้แทน', 'ลดน้ำหนัก', 'กี่นาที', 'กี่วัตต์', 'อุณหภูมิ', 'กี่องศา', 'เก็บได้กี่'])
+               'ใช้แทน', 'ลดน้ำหนัก', 'กี่นาที', 'กี่วัตต์', 'อุณหภูมิ', 'กี่องศา', 'เก็บได้กี่', 'ราคา', 'ต้นทุน', 'กี่บาท'])
 
 def resolve_request(query, recipes, previous, selected_recipe_id=None):
     """Resolve references before retrieval; never silently pick among multiple dishes."""
@@ -100,19 +107,28 @@ class LiveRecipeAdapter:
         self.client = client
         self.model_name = model_name
 
-    def answer_request(self, query, pantry, equipment, previous=(), selected_recipe_id=None):
+    def answer_request(self, query, pantry, equipment, previous=(), selected_recipe_id=None, top_k=3, unknown=()):
         recipes = list(self.retriever.recipes.values())
+        trace = dict(top_k=top_k, retrieved_chunks=[], additional_sections=[])
+        self.last_trace = trace
+        def complete(response):
+            response['retrieval'] = trace
+            response['effective'] = dict(ingredients=sorted(pantry), equipment=sorted(equipment))
+            return response
+        if unknown:
+            log_event('retrieval_rejected', reason='unsupported_ingredient')
+            return complete(dict(status='no_match', answer='ไม่พบสูตรในคลังที่รองรับวัตถุดิบที่ระบุ: ' + ', '.join(unknown) + ' จึงไม่ใช้ของจากคำถามเดิมแทน', recipes=[]))
         if unsupported_information(query):
+            trace['retrieved_chunks'] = self.retriever.search_chunks(query, top_k)
             log_event('retrieval_rejected', reason='unsupported_information')
-            return dict(status='insufficient_context', answer=NO_DATA, recipes=[], kind=question_kind(query))
+            return complete(dict(status='insufficient_context', answer=NO_DATA + ' — เอกสารไม่ได้ระบุข้อมูลที่ถาม', recipes=[], kind=question_kind(query)))
         resolution = resolve_request(query, recipes, previous, selected_recipe_id)
         if resolution.get('status'):
-            return resolution
+            return complete(resolution)
         resolved = resolution['query']
-        hits = candidates(self.retriever, resolved, set(pantry), set(equipment), resolution['previous'])
+        hits = candidates(self.retriever, resolved, set(pantry), set(equipment), resolution['previous'], top_k=top_k, trace=trace)
         if not hits:
-            return dict(status='insufficient_context' if unsupported_information(query) else 'no_match',
-                        answer=NO_DATA, recipes=[], kind=question_kind(query))
+            return complete(dict(status='no_match', answer=NO_DATA, recipes=[], kind=question_kind(query)))
         selected = select_with_llm(self.client, self.model_name, resolved, hits)
         # No exceptions are swallowed or converted to NO_DATA here.
-        return map_answer(resolved, selected, pantry, equipment)
+        return complete(map_answer(resolved, selected, pantry, equipment))

@@ -1,3 +1,7 @@
+# ผลรอบล่าสุด
+
+Semantic evaluation จริง **28/28** ผ่าน รวม 20 ข้อเดิมและ 8 ข้อใหม่ ทดสอบ Top-K 1/3/5, state isolation และตัวอย่างผ่าน pytest ดู STATE_TOPK_REPORT.md สำหรับตัวเลขรวมล่าสุด/ผล Groq จริง แยกจากผลทดสอบย้อนหลังด้านล่าง
+
 # ผลทดสอบจริง — 5 ตุลาคม 2569
 
 สภาพแวดล้อม: Windows, Python 3.12, Streamlit 1.65.0, sentence-transformers 6.1.0, FAISS CPU 1.15.1, Groq SDK 1.7.0, NumPy 2.5.3 ใช้โมเดล multilingual MiniLM จริงบน CPU รอบแก้บั๊กพบ local Streamlit Secrets และทดสอบ Groq จริงแล้ว ดูรายละเอียดใน BUGFIX_REPORT.md

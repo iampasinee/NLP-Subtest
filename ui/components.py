@@ -1,21 +1,37 @@
 from html import escape
 import streamlit as st
-from presentation import EXAMPLES
+from presentation import EXAMPLES, UNANSWERABLE_EXAMPLES
 
 def samples():
-    st.subheader('วันนี้มีอะไรอยู่ในครัวบ้าง?')
-    st.caption('ลองเลือกคำถาม หรือพิมพ์วัตถุดิบของคุณด้านล่าง')
     selected = None
-    for n, (icon, title, query) in enumerate(EXAMPLES):
-        # Columns wrap natively at <=640px; nested containers let labels wrap too.
-        if n == 0:
-            columns = st.columns(3, gap='small')
-        with columns[n]:
-            with st.container(key=f'sample_card_{n}'):
-                st.html(f'<div class="sample-icon">{icon}</div><p class="card-title">{escape(title)}</p>')
-                if st.button(query, key=f'sample_{n}', width='stretch', wrap=True):
-                    selected = query
+    groups = st.tabs(['ลองถามจากข้อมูลในคลังสูตร', 'ลองถามสิ่งที่เอกสารไม่ได้ระบุ'])
+    for group, examples, prefix in zip(groups, [EXAMPLES, UNANSWERABLE_EXAMPLES], ['sample', 'unsupported']):
+        with group:
+            columns = st.columns(2, gap='small')
+            for n, (icon, title, query) in enumerate(examples):
+                with columns[n % 2]:
+                    with st.container(key=f'sample_card_{prefix}_{n}'):
+                        st.caption(f'{icon} {title}')
+                        if st.button(query, key=f'{prefix}_{n}', width='stretch', wrap=True):
+                            selected = query
     return selected
+
+def retrieval_evidence(response):
+    trace = response.get('retrieval')
+    if trace is None:
+        return
+    with st.expander('ดูหลักฐานการค้นคืน'):
+        chunks = trace['retrieved_chunks']
+        st.caption(f"Top-K ที่ใช้: {trace['top_k']} • chunks ที่คัดเลือกจริง: {len(chunks)}")
+        st.caption('คะแนนเป็นความคล้าย ไม่ใช่เปอร์เซ็นต์ความมั่นใจ')
+        for item in chunks:
+            c = item['chunk']
+            st.caption(f"{c['chunk_id']} • {c['recipe_id']} • {c['name']} • {c['section']} • {item['score']:.3f}")
+            st.text(c['text'])
+        with st.expander('หัวข้อสูตรเพิ่มเติมเพื่อเติมบริบท (ไม่นับใน Top-K)'):
+            for part in trace['additional_sections']:
+                st.caption(f"{part['recipe_id']} • {part['name']} • {part['section']}")
+                st.text(part['text'])
 
 def notes(view):
     r = view['recipe']
@@ -31,7 +47,7 @@ def evidence(view):
             st.text(part['text'])
         with st.expander('ข้อความที่ค้นพบและคะแนนความคล้าย'):
             st.text(view['retrieval_evidence'])
-            st.caption(f"Similarity {view['score']:.3f} เป็นความคล้าย ไม่ใช่เปอร์เซ็นต์ความมั่นใจ")
+            st.caption(f"คะแนนความคล้าย {view['score']:.3f} ไม่ใช่เปอร์เซ็นต์ความมั่นใจ")
 
 def full_recipe(view):
     r = view['recipe']
@@ -81,6 +97,10 @@ def answer_message(message, on_select, on_clarify):
     if not response:
         st.markdown(message['content'])
         return
+    effective = response.get('effective', message.get('request', {}))
+    if effective:
+        st.caption('วัตถุดิบที่ใช้ค้น: ' + (', '.join(effective.get('ingredients', [])) or 'ยังไม่ได้ระบุ') + ' • อุปกรณ์: ' + (', '.join(effective.get('equipment', [])) or 'ยังไม่ได้ระบุ / ไม่กรอง'))
+    retrieval_evidence(response)
     status = response['status']
     if status == 'error':
         st.error(response['answer'])

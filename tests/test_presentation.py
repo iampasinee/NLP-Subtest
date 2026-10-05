@@ -57,7 +57,7 @@ def test_ui_examples_cards_select_followup_reset(monkeypatch, model):
     at.run()
     assert not at.exception
     assert at.title[0].value == 'มีอะไร ทำอะไรดี'
-    assert len([b for b in at.button if b.key and b.key.startswith('sample_')]) == 3
+    assert len([b for b in at.button if b.key and b.key.startswith('sample_')]) == len(EXAMPLES)
     at.button(key='sample_0').click().run()
     assert not at.exception
     response = at.session_state['messages'][-1]['response']

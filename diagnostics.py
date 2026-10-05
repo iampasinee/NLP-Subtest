@@ -13,7 +13,7 @@ logger.propagate = False
 
 FIELDS = {'stage', 'reason', 'pipeline_version', 'doc_hash', 'recipes', 'chunks', 'model',
           'error_type', 'http_status', 'candidate_ids', 'recipe_id', 'score', 'kept',
-          'selected_ids', 'finish_reason', 'content_characters', 'retry_after', 'intent'}
+          'selected_ids', 'finish_reason', 'content_characters', 'retry_after', 'intent', 'top_k', 'retrieved_chunks', 'candidate_pool'}
 
 def log_event(stage, **fields):
     record = {'stage': stage}

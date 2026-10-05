@@ -6,7 +6,7 @@ h1,h2,h3,p,button,input,textarea,[data-testid="stMarkdownContainer"],
 [data-testid="stCaptionContainer"], [data-testid="stExpander"] summary {
   font-family: 'Sarabun', Tahoma, 'Noto Sans Thai', sans-serif;
 }
-.stMainBlockContainer { max-width: 980px; padding-top: 2.6rem; padding-bottom: 4rem; }
+.stMainBlockContainer { max-width: 980px; padding-top: 4rem; padding-bottom: 8rem; }
 h1 { font-size: clamp(1.7rem, 4.8vw, 2.25rem) !important; letter-spacing: -.02em; }
 .hero-kicker { color: #A8421B; font-size: .82rem; font-weight: 600; margin: 0; }
 .hero-subtitle { color: #655C54; font-size: 1rem; margin-top: -.5rem; }
@@ -35,7 +35,7 @@ button[kind="secondary"] { border-radius: 10px; }
 [data-testid="stMarkdownContainer"] p, [data-testid="stCaptionContainer"],
 .ingredient-panel, .card-title, .badge { overflow-wrap: anywhere; }
 @media (max-width: 640px) {
-  .stMainBlockContainer { padding: 1.3rem 1rem 4rem; }
+  .stMainBlockContainer { padding: 4rem 1rem 8rem; }
   div[class*="st-key-recipe_card_"], div[class*="st-key-sample_card_"] { padding: 14px; }
   [data-testid="stMarkdownContainer"] table { width: 100%; }
 }
