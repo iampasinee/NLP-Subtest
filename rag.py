@@ -18,36 +18,88 @@ def clean(text):
 
 def fingerprint(folder):
     h = hashlib.sha256()
-    for p in sorted(Path(folder).glob("*.json")):
+    for p in sorted(Path(folder).glob("recipes.md")):
         h.update(p.name.encode()); h.update(p.read_bytes())
     return h.hexdigest()
 
 def load_recipes(folder):
+    """Parse actual H2 recipe boundaries and H3 sections; no JSON fallback."""
+    path = Path(folder) / 'recipes.md'
+    if not path.exists():
+        return []
+    text = path.read_text(encoding='utf-8-sig').replace('\r\n', '\n')
+    boundaries = list(re.finditer(r'^## (R\d{2,}) — (.+)$', text, re.MULTILINE))
+    if not boundaries:
+        if text.strip():
+            raise ValueError('ไม่พบหัวข้อสูตร ## R01 — ชื่อเมนู')
+        return []
+    if len(re.findall(r'^## ', text, re.MULTILINE)) != len(boundaries):
+        raise ValueError('รูปแบบหัวข้อสูตรไม่ถูกต้อง')
     result = []
     seen = set()
-    for p in sorted(Path(folder).glob("*.json")):
-        r = json.loads(p.read_text(encoding="utf-8"))
-        required = ("recipe_id", "name", "ingredients", "servings", "equipment", "steps", "source", "notes")
-        if any(k not in r or (not r[k] and k != 'equipment') for k in required):
-            raise ValueError(f"ข้อมูลสูตรไม่ครบ: {p.name}")
-        if r['recipe_id'] in seen:
+    required = {'วัตถุดิบ', 'เครื่องปรุง', 'จำนวนเสิร์ฟ', 'อุปกรณ์', 'ขั้นตอน', 'หมายเหตุ', 'แหล่งที่มา'}
+    for n, match in enumerate(boundaries):
+        recipe_id, name = match.groups()
+        if recipe_id in seen:
             raise ValueError("recipe_id ซ้ำ")
-        seen.add(r['recipe_id'])
-        if not isinstance(r['servings'], int) or r['servings'] < 1:
+        seen.add(recipe_id)
+        end = boundaries[n+1].start() if n+1 < len(boundaries) else len(text)
+        body = text[match.end():end]
+        headings = list(re.finditer(r'^### (.+)$', body, re.MULTILINE))
+        parts = {}
+        for j, heading in enumerate(headings):
+            title = heading[1].strip()
+            if title in parts:
+                raise ValueError(f'หัวข้อย่อยซ้ำ: {recipe_id} {title}')
+            stop = headings[j+1].start() if j+1 < len(headings) else len(body)
+            parts[title] = body[heading.end():stop].strip()
+        if set(parts) != required or any(not v for v in parts.values()) or body[:headings[0].start()].strip():
+            raise ValueError(f'ข้อมูลสูตรไม่ครบหรือมีหัวข้อที่ไม่รองรับ: {recipe_id}')
+        items = []
+        seasonings = []
+        for title in ['วัตถุดิบ', 'เครื่องปรุง']:
+            for line in parts[title].splitlines():
+                if line == 'ไม่มีรายการ' or line in ['| ลำดับ | รายการ | ปริมาณ |', '| --- | --- | --- |']:
+                    continue
+                item = re.fullmatch(r'\| (\d+) \| (.+?) \| (.+?) \|', line)
+                if not item:
+                    raise ValueError(f'รายการส่วนผสมไม่ถูกต้อง: {recipe_id} {title}')
+                order, ingredient, quantity = item.groups()
+                record = dict(name=ingredient, quantity=quantity)
+                items.append((int(order), record))
+                if title == 'เครื่องปรุง':
+                    seasonings.append(record)
+        if not items or sorted(i[0] for i in items) != list(range(1, len(items)+1)):
+            raise ValueError(f'ลำดับส่วนผสมไม่ครบหรือซ้ำ: {recipe_id}')
+        serving = re.fullmatch(r'(\d+) เสิร์ฟ', parts['จำนวนเสิร์ฟ'])
+        if not serving or int(serving[1]) < 1:
             raise ValueError("จำนวนเสิร์ฟไม่ถูกต้อง")
-        if any(not i.get('name') or not i.get('quantity') for i in r['ingredients']):
-            raise ValueError("วัตถุดิบต้องมีชื่อและปริมาณ")
-        r['document'] = p.name
+        equipment = []
+        if parts['อุปกรณ์'] != 'ไม่ระบุ':
+            for line in parts['อุปกรณ์'].splitlines():
+                if not line.startswith('- ') or not line[2:].strip():
+                    raise ValueError(f'รูปแบบอุปกรณ์ไม่ถูกต้อง: {recipe_id}')
+                equipment.append(line[2:])
+        steps = []
+        for line in parts['ขั้นตอน'].splitlines():
+            if not line.strip():
+                continue
+            step = re.fullmatch(r'(\d+)\. (.+)', line)
+            if not step or int(step[1]) != len(steps)+1:
+                raise ValueError(f'ลำดับขั้นตอนไม่ถูกต้อง: {recipe_id}')
+            steps.append(step[2])
+        if not steps:
+            raise ValueError(f'ไม่มีขั้นตอน: {recipe_id}')
+        r = dict(recipe_id=recipe_id, name=name, ingredients=[i for _, i in sorted(items)],
+                 seasonings=seasonings, servings=int(serving[1]), equipment=equipment, steps=steps,
+                 notes=parts['หมายเหตุ'], source=parts['แหล่งที่มา'], document=path.name,
+                 _sections=parts)
         result.append(r)
     return result
 
 def sections(r):
-    return {
-        "ส่วนผสม": "\n".join(f"{i['name']} {i['quantity']}" for i in r['ingredients']),
-        "อุปกรณ์": "\n".join(r['equipment']),
-        "ขั้นตอน": "\n".join(f"{n}. {s}" for n, s in enumerate(r['steps'], 1)),
-        "รายละเอียด": f"จำนวนเสิร์ฟ {r['servings']}\n{r['notes']}\nที่มา {r['source']}"
-    }
+    """Return the actual Markdown H3 bodies retained by the document loader."""
+    return dict(r['_sections'])
 
 def token_parts(text, tokenizer, limit):
     """Split original Unicode text recursively; never decode token fragments or truncate."""
@@ -209,10 +261,6 @@ def render_answer(hits):
         r = h['recipe']
         status = 'วัตถุดิบครบตามสูตร (ตรวจชื่อเท่านั้น ยังไม่ยืนยันปริมาณที่มี)' if not h['missing'] else 'ยังขาดวัตถุดิบ: ' + ', '.join(h['missing'])
         display = sections(r)
-        for key in ['ส่วนผสม', 'อุปกรณ์']:
-            display[key] = '\n'.join('- ' + line for line in display[key].splitlines())
-        display['ขั้นตอน'] = '\n\n'.join(display['ขั้นตอน'].splitlines())
-        display['รายละเอียด'] = display['รายละเอียด'].replace('\n', '\n\n')
         blocks.append(f"### {n}. {r['name']} [{r['recipe_id']}]\n{status}\n\n{h['equipment_status']}\n\n" +
                       '\n\n'.join(f"**{k}**\n\n{v}" for k, v in display.items()) +
                       f"\n\nอ้างอิง: {r['document']} • {r['name']} [{r['recipe_id']}]")

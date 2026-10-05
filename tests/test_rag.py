@@ -1,4 +1,5 @@
 import json
+import hashlib
 from pathlib import Path
 from types import SimpleNamespace
 import numpy as np
@@ -6,6 +7,7 @@ import pytest
 from rag import (MODEL, Retriever, candidates, checks, extract_names, fingerprint,
                  load_recipes, make_chunks, render_answer, resolve_followup, select_with_llm, token_parts, update_pantry)
 from scripts.validate_data import validate
+from scripts.recipe_markdown import recipes_to_markdown
 
 ROOT = Path(__file__).resolve().parents[1]
 
@@ -24,26 +26,62 @@ def retriever(recipes, model):
 
 def test_corpus():
     stats = validate(ROOT / 'data')
-    assert stats['files'] == stats['recipes'] == 20
+    assert stats['files'] == 1 and stats['recipes'] == 20
     assert stats['content_characters'] >= 15000
 
-def test_bad_schema_and_duplicate(tmp_path, recipes):
-    (tmp_path / 'bad.json').write_text('{}', encoding='utf-8')
+def test_all_original_fields_preserved(recipes):
+    # Digest captured from the original 20 JSON files before migration.
+    keys = ['recipe_id', 'name', 'ingredients', 'servings', 'equipment', 'steps', 'source', 'notes']
+    original_fields = [{k: r[k] for k in keys} for r in recipes]
+    digest = hashlib.sha256(json.dumps(original_fields, ensure_ascii=False, sort_keys=True,
+                                     separators=(',', ':')).encode()).hexdigest()
+    assert digest == 'fe348790469b369e665db64fdcf3cf1aaec3b500c3d6ed9b4097487e98f39d40'
+
+def test_markdown_is_actual_source(tmp_path, recipes):
+    (tmp_path / 'R01.json').write_text(json.dumps(recipes[0]), encoding='utf-8')
+    assert load_recipes(tmp_path) == []  # No legacy JSON fallback.
+    text = recipes_to_markdown([recipes[0]])
+    text = text.replace('1 ถ้วย', '2 ถ้วย').replace(recipes[0]['steps'][0], 'ขั้นตอนใหม่จาก Markdown')
+    (tmp_path / 'recipes.md').write_text(text, encoding='utf-8')
+    loaded = load_recipes(tmp_path)[0]
+    assert loaded['ingredients'][0]['quantity'] == '2 ถ้วย'
+    assert loaded['steps'][0] == 'ขั้นตอนใหม่จาก Markdown'
+    assert loaded['document'] == 'recipes.md'
+
+@pytest.mark.parametrize('old,new', [
+    ('### เครื่องปรุง', '### วัตถุดิบ'),
+    ('| 4 | น้ำมันพืช', '| 1 | น้ำมันพืช'),
+    ('1. แยกข้าวสวย', '2. แยกข้าวสวย'),
+    ('## R01 —', '## R01 -'),
+])
+def test_reject_malformed_markdown(tmp_path, recipes, old, new):
+    text = recipes_to_markdown([recipes[0]]).replace(old, new)
+    (tmp_path / 'recipes.md').write_text(text, encoding='utf-8')
     with pytest.raises(ValueError):
         load_recipes(tmp_path)
-    (tmp_path / 'bad.json').write_text(json.dumps(recipes[0]), encoding='utf-8')
-    (tmp_path / 'duplicate.json').write_text(json.dumps(recipes[0]), encoding='utf-8')
+
+def test_bad_schema_and_duplicate(tmp_path, recipes):
+    (tmp_path / 'recipes.md').write_text('## R01 — สูตรไม่ครบ\n### วัตถุดิบ\nไข่', encoding='utf-8')
+    with pytest.raises(ValueError):
+        load_recipes(tmp_path)
+    (tmp_path / 'recipes.md').write_text(recipes_to_markdown([recipes[0], recipes[0]]), encoding='utf-8')
     with pytest.raises(ValueError, match='ซ้ำ'):
         load_recipes(tmp_path)
 
 def test_fingerprint_content_not_mtime(tmp_path):
-    p = tmp_path / 'a.json'; p.write_text('{}')
-    old = fingerprint(tmp_path); p.write_text('{"new": 1}')
+    p = tmp_path / 'recipes.md'; p.write_text('# old')
+    old = fingerprint(tmp_path); p.write_text('# changed')
     assert old != fingerprint(tmp_path)
 
 def test_chunk_limit_and_no_lost_text(recipes, model):
     chunks = make_chunks(recipes, model)
-    assert chunks and all(c['recipe_id'] and c['name'] and c['document'] for c in chunks)
+    assert chunks and all(c['recipe_id'] and c['name'] and c['document'] == 'recipes.md' and c['section'] for c in chunks)
+    assert {c['section'] for c in chunks} == {'วัตถุดิบ', 'เครื่องปรุง', 'จำนวนเสิร์ฟ', 'อุปกรณ์', 'ขั้นตอน', 'หมายเหตุ', 'แหล่งที่มา'}
+    for r in recipes:
+        for section, body in r['_sections'].items():
+            matching = [c for c in chunks if c['recipe_id'] == r['recipe_id'] and c['section'] == section]
+            prefix = f"{r['recipe_id']} {r['name']} {section}\n"
+            assert ''.join(c['text'][len(prefix):] for c in matching) == body
     assert all(len(model.tokenizer.encode(c['text'])) <= model.max_seq_length for c in chunks)
     long = 'ต้นหอม ไข่ไก่ ซีอิ๊วขาว ' * 300
     parts = token_parts(long, model.tokenizer, model.max_seq_length)
@@ -110,7 +148,7 @@ def test_llm_citation_validation_and_exact_evidence(retriever):
         select_with_llm(fake_client({'recipe_ids': ['R01'], 'citations': ['R02']}), 'mock', 'q', hits)
     chosen = select_with_llm(fake_client({'recipe_ids': ['R01'], 'citations': ['R01']}), 'mock', 'q', hits)
     answer = render_answer(chosen)
-    assert 'R01.json' in answer and '1 ถ้วย' in answer
+    assert 'recipes.md' in answer and '1 ถ้วย' in answer and '[R01]' in answer
     assert all(s in answer for s in chosen[0]['recipe']['steps'])
 
 def test_no_key_ui():
@@ -144,7 +182,7 @@ def test_groq_ui_with_simulated_responses(monkeypatch, model, failure):
     elif failure == 'connection':
         error = groq.APIConnectionError(request=request); expected = 'เชื่อมต่อ Groq ไม่สำเร็จ'
     else:
-        error = None; expected = 'R01.json'
+        error = None; expected = 'recipes.md'
     def create(**kwargs):
         if error:
             raise error

@@ -7,8 +7,8 @@
       "id": "T01",
       "actual_recipe_ids": [
         "R01",
-        "R02",
-        "R05"
+        "R05",
+        "R02"
       ],
       "passed": true
     },

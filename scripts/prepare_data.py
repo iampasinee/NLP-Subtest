@@ -1,5 +1,8 @@
 """Reproducible original AI-assisted teaching corpus; no external recipe attribution."""
-import json
+try:
+    from .recipe_markdown import recipes_to_markdown
+except ImportError:
+    from recipe_markdown import recipes_to_markdown
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -29,13 +32,15 @@ SPECS = [
 
 def main():
     folder = ROOT / 'data'; folder.mkdir(exist_ok=True)
+    recipes = []
     for n, (name, ingredients, equipment, steps) in enumerate(SPECS, 1):
         r = dict(recipe_id=f'R{n:02}', name=name,
                  ingredients=[dict(name=s.split(':')[0], quantity=s.split(':')[1]) for s in ingredients.split('|')],
                  servings=1, equipment=equipment.split('|'), steps=steps.split('|'),
                  source='เอกสารตัวอย่างต้นฉบับสำหรับโครงงาน สร้างโดย AI วันที่ 5 ตุลาคม 2569 ไม่ได้อ้างจากเว็บไซต์',
                  notes=f'เมนู {name} เป็นสูตรตัวอย่างเพื่อทดสอบ RAG สำหรับหนึ่งเสิร์ฟ ต้องตรวจทานโดยผู้มีความรู้ก่อนนำไปประกอบอาหารจริง ข้อมูลนี้ใช้ทดสอบการแยกส่วนผสม ขั้นตอน และอุปกรณ์ ไม่ใช่สูตรที่ผ่านการทดลองในครัว ไม่มีการยืนยันความเหมาะสมต่อโรคหรือการแพ้อาหาร')
-        (folder / f'R{n:02}.json').write_text(json.dumps(r, ensure_ascii=False, indent=2) + '\n', encoding='utf-8')
+        recipes.append(r)
+    (folder / 'recipes.md').write_text(recipes_to_markdown(recipes), encoding='utf-8')
 
 if __name__ == '__main__':
     main()

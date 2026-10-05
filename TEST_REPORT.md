@@ -4,18 +4,23 @@
 
 | รายการ | ผลที่รันจริง |
 |---|---|
-| ตรวจคลัง JSON/schema | ผ่าน: 20 ไฟล์ 20 สูตร 19,506 ตัวอักษรเนื้อหา |
+| ตรวจคลัง Markdown/schema | ผ่าน: data/recipes.md ไฟล์เดียว 20 สูตร 18,590 ตัวอักษรค่าฟิลด์จริง |
+| รักษาข้อมูลเดิมจาก JSON | ผ่าน: เทียบทุกฟิลด์ทั้ง 20 สูตรรวมลำดับส่วนผสม และตรวจ SHA-256 ของข้อมูลเดิม |
 | Embedding model | 384 dimensions, max_seq_length 128 tokens |
-| Structure-based chunks | 100 chunks, ยาวที่สุด 113 tokens รวม prefix/special tokens |
-| pytest | 19 tests ผ่าน รวม AppTest และ Groq client จำลอง |
+| Structure-based chunks | 160 chunks จากหัวข้อย่อย Markdown, ยาวที่สุด 111 tokens รวม prefix/special tokens |
+| pytest | 25 tests ผ่าน รวม AppTest และ Groq client จำลอง |
 | คำถามใน CSV / Semantic Retrieval จริง | 20/20 ผ่าน ดู `retrieval_results.json` |
 | Dependencies | `pip check`: No broken requirements found |
-| เว็บ Streamlit ในเครื่อง | รันได้ที่ localhost:8501, health check HTTP 200 / ok |
+| เว็บ Streamlit ในเครื่อง | รอบก่อนรันที่ localhost:8501 และ health check 200; รอบ Markdown ตรวจด้วย AppTest |
 | Groq จริง | **ยังไม่ได้ทดสอบ — ไม่มี API Key** |
 | Hosting บน Community Cloud | **ยังไม่ได้ Deploy** |
 | ภาพหน้าเว็บ desktop/mobile | **ยังไม่ได้ตรวจด้วย browser จริง** เครื่องมือ Browser Use ปฏิเสธสิทธิ์เปิด localhost |
 
-pytest ครอบคลุมการโหลดข้อมูลผิดโครงสร้าง/recipe_id ซ้ำ, fingerprint เปลี่ยนเมื่อเนื้อหาเปลี่ยน, token budget และการแบ่งข้อความยาวโดยไม่สูญหาย, FAISS เวกเตอร์ normalized, semantic paraphrase, top_k เกินจำนวน chunks, คลังว่าง, alias/การปฏิเสธวัตถุดิบ, แยกการถามสูตรออกจากการแจ้งของที่มี, เครื่องปรุงที่ขาด, อุปกรณ์และข้อมูลอุปกรณ์ไม่เพียงพอ, การถามต่อ, สูตรนอกคลัง, อ้างอิงผิด ID, คำตอบที่แสดงขั้นตอนต้นฉบับ และหน้าเว็บไม่มี Key/เริ่มบทสนทนาใหม่
+pytest ครอบคลุมการโหลด Markdown ผิดโครงสร้าง/recipe_id ซ้ำ หัวข้อย่อยซ้ำ ลำดับส่วนผสมและขั้นตอนผิด รูปแบบหัวข้อสูตรผิด, fingerprint เปลี่ยนเมื่อ recipes.md เปลี่ยน, token budget และการแบ่งข้อความยาวโดยไม่สูญหาย, FAISS เวกเตอร์ normalized, semantic paraphrase, top_k เกินจำนวน chunks, คลังว่าง, alias/การปฏิเสธวัตถุดิบ, แยกการถามสูตรออกจากการแจ้งของที่มี, เครื่องปรุงที่ขาด, อุปกรณ์และข้อมูลอุปกรณ์ไม่เพียงพอ, การถามต่อ, สูตรนอกคลัง, อ้างอิงผิด ID, คำตอบที่แสดงขั้นตอนต้นฉบับ และหน้าเว็บไม่มี Key/เริ่มบทสนทนาใหม่
+
+ทดสอบเพิ่มว่าการแก้ปริมาณและขั้นตอนใน Markdown เปลี่ยนผลโหลดจริง ไม่มี fallback อ่าน JSON; ทุก chunk มี recipe_id ชื่อสูตร หัวข้อย่อยและ document=recipes.md รวมข้อความส่วนที่แบ่งแล้วได้เนื้อหาหัวข้อเดิมครบ; คำตอบยังมีขั้นตอนทั้งหมดและแหล่งอ้างอิงสูตรเดิม เครื่องปรุงแยกหัวข้อแต่ยังถูกตรวจร่วมกับวัตถุดิบ
+
+ตัวนับใหม่รวมค่าฟิลด์โดยไม่นับ Markdown/table syntax ต่างจากตัวนับเดิมที่นับข้อความหัวข้อและรูปแบบบางส่วน จำนวนตัวอักษรที่เปลี่ยนจึงไม่ได้หมายถึงข้อมูลสูญหาย เกณฑ์จำนวนไฟล์เปลี่ยนเป็นหนึ่งไฟล์ตามคำขอ และยังผ่านเกณฑ์เนื้อหา 15,000 ตัวอักษร
 
 AppTest ของ Groq ใช้ client จำลองสำหรับ Key ไม่ถูกต้อง, timeout, rate limit, connection error และคำตอบสำเร็จ ตรวจว่าไม่แสดงข้อความ exception ดิบ/placeholder คีย์ ไม่ใช่ผลทดสอบ API หรือคุณภาพคำตอบของโมเดลจริง
 
