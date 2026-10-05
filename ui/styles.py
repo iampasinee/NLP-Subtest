@@ -32,13 +32,13 @@ button[kind="secondary"] { border-radius: 10px; }
 /* Role styling only affects keyed conversation turns, never the sidebar. */
 .stMain div[class*="st-key-chat_user_"] [data-testid="stChatMessage"],
 .stMain div[class*="st-key-chat_assistant_"] [data-testid="stChatMessage"] {
-  background: transparent; padding: .5rem 0; gap: .6rem; align-items: flex-start;
+  background: transparent; padding: .25rem 0; gap: 10px; align-items: flex-start;
 }
 .stMain div[class*="st-key-chat_user_"] [data-testid="stChatMessage"] {
-  flex-direction: row-reverse;
+  flex-direction: row-reverse; width: fit-content; max-width: min(88%, 48rem); margin-left: auto;
 }
 .stMain div[class*="st-key-chat_user_"] [data-testid="stChatMessageContent"] {
-  flex: 0 1 auto; width: fit-content; max-width: calc(100% - 3rem); min-width: 0;
+  flex: 0 1 auto; width: auto; max-width: none; min-width: 0;
 }
 .stMain div[class*="st-key-chat_assistant_"] [data-testid="stChatMessageContent"] {
   min-width: 0; max-width: calc(100% - 3rem);
@@ -65,9 +65,10 @@ button[kind="secondary"] { border-radius: 10px; }
 .ingredient-panel, .card-title, .badge { overflow-wrap: anywhere; }
 @media (max-width: 640px) {
   .stMainBlockContainer { padding: 4rem 1rem 8rem; }
+  .stMain div[class*="st-key-chat_user_"] [data-testid="stChatMessage"] { max-width: 100%; }
   .chat-user-bubble, .stMain div[class*="st-key-assistant_bubble_"] { padding: .65rem .8rem; }
   .stMain div[class*="st-key-chat_user_"] [data-testid="stChatMessage"],
-  .stMain div[class*="st-key-chat_assistant_"] [data-testid="stChatMessage"] { gap: .4rem; }
+  .stMain div[class*="st-key-chat_assistant_"] [data-testid="stChatMessage"] { gap: 8px; }
   div[class*="st-key-recipe_card_"], div[class*="st-key-sample_card_"] { padding: 14px; }
   [data-testid="stMarkdownContainer"] table { width: 100%; }
 }

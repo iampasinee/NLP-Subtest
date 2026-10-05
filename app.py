@@ -27,10 +27,11 @@ def configuration():
 from presentation import LiveRecipeAdapter, question_kind
 from request_state import plan_request
 from ui.styles import CSS
-from ui.components import samples, chat_turn, evidence_panel
+from ui.components import samples, sidebar_samples, chat_turn, evidence_panel
+from submission import enqueue, take, finish
 
 st.html('<style>' + CSS + '</style>')
-for name, default in [('messages', []), ('previous', []), ('pantry', set()), ('selected_recipe_id', None), ('selected_evidence_turn', None), ('selected_evidence_recipe', None)]:
+for name, default in [('messages', []), ('previous', []), ('pantry', set()), ('selected_recipe_id', None), ('selected_evidence_turn', None), ('selected_evidence_recipe', None), ('request_processing', False)]:
     if name not in st.session_state:
         st.session_state[name] = default
 for name, value in st.session_state.pop('pending_form_values', {}).items():
@@ -38,7 +39,7 @@ for name, value in st.session_state.pop('pending_form_values', {}).items():
 
 def reset():
     for name in ['messages', 'previous', 'pantry', 'selected_recipe_id', 'pending_query',
-                 'form_ingredients', 'form_seasonings', 'form_equipment', 'pending_form_values']:
+                 'form_ingredients', 'form_seasonings', 'form_equipment', 'pending_form_values', 'pending_submission', 'request_processing']:
         st.session_state.pop(name, None)
     st.session_state.pop('form_snapshot', None)
     for name in ['selected_evidence_turn', 'selected_evidence_recipe', 'evidence_turn_picker', 'evidence_recipe_picker']:
@@ -48,9 +49,20 @@ def reset():
 def select_recipe(recipe_id):
     st.session_state.selected_recipe_id = recipe_id
 
+def queue_query(query):
+    enqueue(st.session_state, query)
+
+def queue_typed():
+    queue_query(st.session_state.get('chat_query', ''))
+
+def show_samples():
+    st.session_state.sample_questions_open = True
+    st.toast('คำถามตัวอย่างอยู่ในแผงข้าง เปิดด้วยลูกศรมุมซ้ายบนหากแผงปิดอยู่')
+
 def clarify(recipe_id, query):
-    select_recipe(recipe_id)
-    st.session_state.pending_query = query
+    if not st.session_state.request_processing:
+        select_recipe(recipe_id)
+        queue_query(query)
 
 def select_evidence(turn_id, recipe_id=None):
     st.session_state.selected_evidence_turn = turn_id
@@ -67,7 +79,9 @@ with left:
     st.title('มีอะไร ทำอะไรดี')
     st.write('ค้นเมนูจากวัตถุดิบที่มี พร้อมสูตรและแหล่งอ้างอิง')
 with right:
-    st.button('เริ่มใหม่', key='reset_header', on_click=reset, width='stretch', wrap=True)
+    st.button('เริ่มใหม่', key='reset_header', on_click=reset, width='stretch', wrap=True, disabled=st.session_state.request_processing)
+st.button('คำถามตัวอย่าง', key='show_sidebar_samples', on_click=show_samples, disabled=st.session_state.request_processing)
+st.caption('ลองคำถามตัวอย่างได้ตลอดการสนทนาในแผงข้าง')
 st.caption('สูตรตัวอย่างสร้างโดย AI ต้องตรวจทานก่อนใช้จริง • เปิด/ปิดแผงข้างด้วยลูกศรมุมซ้ายบน')
 try:
     key, model_name = configuration()
@@ -83,7 +97,6 @@ recipes = load_recipes(ROOT / 'data')
 names = {i['name'] for r in recipes for i in r['ingredients']}
 seasonings = {i['name'] for r in recipes for i in r['ingredients'] if i['name'] in r['_sections']['เครื่องปรุง']}
 equipment_names = {e for r in recipes for e in r['equipment']}
-search_query = None
 with st.sidebar:
     st.header('แผงข้อมูล')
     pantry_panel, settings_panel, sources_panel = st.tabs(
@@ -95,17 +108,19 @@ with st.sidebar:
         equipment = st.multiselect('อุปกรณ์ที่มี', sorted(equipment_names), key='form_equipment')
         st.caption('ไม่เลือกอุปกรณ์ = ยังไม่ได้ระบุ / ไม่กรอง หากเลือก ให้ระบุทั้งหมดที่มีรวมถ้วย ช้อน มีด')
         st.caption('ตรวจชื่อวัตถุดิบ ไม่ยืนยันว่าปริมาณที่มีเพียงพอ')
-        if st.button('ค้นเมนูจากของที่มี', key='search_saved', type='primary', width='stretch'):
-            search_query = 'ค้นเมนูจากของที่มี'
+        st.button('ค้นเมนูจากของที่มี', key='search_saved', type='primary', width='stretch',
+                  on_click=queue_query, args=('ค้นเมนูจากของที่มี',), disabled=st.session_state.request_processing)
     with settings_panel:
         top_k = st.slider('จำนวนส่วนเอกสารที่ค้นคืน (Top-K)', 1, 10, 3, key='search_top_k')
         st.caption('K นับส่วนเอกสารที่ค้นคืน ไม่ใช่จำนวนการ์ดเมนู สูตรเต็มที่เติมบริบทแสดงแยกต่างหาก')
     with sources_panel:
         evidence_panel(st.session_state.messages)
+    with st.expander('คำถามตัวอย่าง', key='sample_questions_open', on_change='rerun'):
+        sidebar_samples(queue_query, disabled=st.session_state.request_processing)
     with st.expander('สำหรับนักพัฒนา'):
         st.caption(f'คลังสูตร {len(recipes)} เมนู · CPU · {model_name}')
         st.caption(f'เวอร์ชัน {PIPELINE_VERSION} · index {index_key[:12]}')
-        if st.button('ทดสอบ Groq โดยตรง', disabled=not key):
+        if st.button('ทดสอบ Groq โดยตรง', disabled=not key or st.session_state.request_processing):
             try:
                 smoke_test(Groq(api_key=key, timeout=30, max_retries=0), model_name)
                 st.success('Groq ตอบข้อความทดสอบที่ไม่ว่างสำเร็จ')
@@ -121,81 +136,88 @@ if selected_id:
     st.button('ยกเลิกการเลือกเมนู', on_click=select_recipe, args=(None,))
 for message in st.session_state.messages:
     chat_turn(message, select_recipe, clarify, select_evidence)
-example_query = samples() if not st.session_state.messages else None
-query = st.chat_input('พิมพ์วัตถุดิบ หรือถามเกี่ยวกับสูตร…', max_chars=2000, submit_mode='disable', key='chat_query') or search_query or example_query or st.session_state.pop('pending_query', None)
-if query:
-    user_message = dict(role='user', id=uuid4().hex, content=query)
-    st.session_state.messages.append(user_message)
-    chat_turn(user_message, select_recipe, clarify, select_evidence)
-    answer = dict(role='assistant', id=uuid4().hex, query=query, content='')
-    if not key:
-        answer['content'] = 'ยังไม่ได้เรียก LLM กรุณาตั้งค่า GROQ_API_KEY ตามข้อความด้านบน'
-    else:
-        stage = 'index'
-        adapter = None
-        try:
-            with st.spinner('กำลังค้นสูตรและตรวจข้อมูล…'):
-                retriever = knowledge_index(index_key)
-                form_pantry = extract_names(ingredients_text + ' ' + seasonings_text, names)
-                form_changed = st.session_state.get('form_snapshot', sorted(form_pantry)) != sorted(form_pantry)
-                current = form_pantry if form_changed else st.session_state.pantry
-                plan = plan_request(query, form_pantry, current, recipes)
-                if plan['intent'] in ['saved_search', 'addition']:
-                    form_plan = plan_request(ingredients_text + ' ' + seasonings_text, set(), set(), recipes)
-                    plan['unknown'] = list(dict.fromkeys(plan['unknown'] + form_plan['unknown']))
-                st.session_state.form_snapshot = sorted(form_pantry)
-                pantry = plan['pantry']
-                st.session_state.pantry = pantry
-                if plan['intent'] in ['new_search', 'saved_search', 'addition']:
-                    st.session_state.selected_recipe_id = None
-                    st.session_state.previous = []
-                eq = set(equipment)
-                if not eq and 'ไมโครเวฟ' in query and any(s in query for s in ['เฉพาะ', 'เท่านั้น']):
-                    eq = {'ไมโครเวฟ'}
-                answer['request'] = dict(intent=plan['intent'], ingredients=sorted(pantry), equipment=sorted(eq), top_k=top_k)
-                stage = 'retrieval_or_groq'
-                adapter = LiveRecipeAdapter(retriever, Groq(api_key=key, timeout=30, max_retries=0), model_name)
-                response = adapter.answer_request(
-                    query, pantry, eq, st.session_state.previous, st.session_state.selected_recipe_id, top_k=top_k, unknown=plan['unknown'])
-                answer['response'] = response
-                answer['content'] = response.get('content', response['answer'])
-                if response['status'] == 'ok':
-                    st.session_state.previous = [v['recipe_id'] for v in response['recipes']]
-                    st.session_state.selected_recipe_id = response.get('selected_recipe_id')
-        except AuthenticationError as error:
-            log_failure('groq_api', error, model_name)
-            answer['content'] = 'Groq API Key ไม่ถูกต้อง กรุณาตรวจค่าใน Secrets'
-        except RateLimitError as error:
-            log_failure('groq_api', error, model_name)
-            answer['content'] = 'ใช้งานถึงขีดจำกัดของ Groq แล้ว กรุณาลองใหม่ภายหลัง'
-        except APITimeoutError as error:
-            log_failure('groq_api', error, model_name)
-            answer['content'] = 'Groq ใช้เวลาตอบนานเกินกำหนด กรุณาลองใหม่'
-        except APIConnectionError as error:
-            log_failure('groq_api', error, model_name)
-            answer['content'] = 'เชื่อมต่อ Groq ไม่สำเร็จ กรุณาตรวจการเชื่อมต่อและชื่อโมเดลใน Secrets'
-        except APIStatusError as error:
-            log_failure('groq_api', error, model_name)
-            answer['content'] = f'Groq API ส่ง HTTP {error.status_code} กรุณาตรวจชื่อโมเดลและการตั้งค่า API ใน Secrets หรือดู Cloud logs'
-        except LLMParseError as error:
-            log_failure('groq_parse', error, model_name)
-            answer['content'] = 'Groq ส่งคำตอบว่าง ไม่ครบ หรืออ่าน JSON ไม่ได้ กรุณาลองใหม่หรือตรวจ Cloud logs'
-        except LLMValidationError as error:
-            log_failure('groq_validation', error, model_name)
-            answer['content'] = 'คำตอบ Groq ไม่ผ่านการตรวจรหัสสูตรหรือแหล่งอ้างอิง จึงยังไม่แสดงสูตร กรุณาลองใหม่'
-        except LLMNoSelectionError as error:
-            log_failure('groq_selection', error, model_name)
-            answer['content'] = 'พบสูตรที่เกี่ยวข้องในเอกสาร แต่ Groq ยังไม่เลือกเมนูจาก Context กรุณาลองใหม่หรือระบุคำถามให้ชัดเจน'
-        except ValueError as error:
-            log_failure(stage, error, model_name)
-            answer['content'] = 'คำตอบหรือข้อมูลไม่ผ่านการตรวจสอบ จึงไม่แสดงคำตอบ กรุณาลองใหม่หรือตรวจคลังเอกสาร'
-        except Exception as error:
-            log_failure(stage, error, model_name)
-            answer['content'] = 'โหลดโมเดลหรือค้นหาไม่สำเร็จ กรุณาตรวจ dependencies และการดาวน์โหลดโมเดลครั้งแรก'
-    if 'response' not in answer and key:
-        answer['response'] = dict(status='error', answer=answer['content'])
-        if adapter is not None and hasattr(adapter, 'last_trace'):
-            answer['response']['retrieval'] = adapter.last_trace
-            answer['response']['effective'] = answer.get('request', {})
-    st.session_state.messages.append(answer)
+if not st.session_state.messages:
+    samples(queue_query, disabled=st.session_state.request_processing)
+st.chat_input('พิมพ์วัตถุดิบ หรือถามเกี่ยวกับสูตร…', max_chars=2000, submit_mode='disable',
+              key='chat_query', on_submit=queue_typed, disabled=st.session_state.request_processing)
+submission = take(st.session_state)
+if submission:
+    try:
+        query = submission['question']
+        user_message = dict(role='user', id=uuid4().hex, content=query)
+        st.session_state.messages.append(user_message)
+        chat_turn(user_message, select_recipe, clarify, select_evidence)
+        answer = dict(role='assistant', id=uuid4().hex, query=query, content='')
+        if not key:
+            answer['content'] = 'ยังไม่ได้เรียก LLM กรุณาตั้งค่า GROQ_API_KEY ตามข้อความด้านบน'
+        else:
+            stage = 'index'
+            adapter = None
+            try:
+                with st.spinner('กำลังค้นสูตรและตรวจข้อมูล…'):
+                    retriever = knowledge_index(index_key)
+                    form_pantry = extract_names(ingredients_text + ' ' + seasonings_text, names)
+                    form_changed = st.session_state.get('form_snapshot', sorted(form_pantry)) != sorted(form_pantry)
+                    current = form_pantry if form_changed else st.session_state.pantry
+                    plan = plan_request(query, form_pantry, current, recipes)
+                    if plan['intent'] in ['saved_search', 'addition']:
+                        form_plan = plan_request(ingredients_text + ' ' + seasonings_text, set(), set(), recipes)
+                        plan['unknown'] = list(dict.fromkeys(plan['unknown'] + form_plan['unknown']))
+                    st.session_state.form_snapshot = sorted(form_pantry)
+                    pantry = plan['pantry']
+                    st.session_state.pantry = pantry
+                    if plan['intent'] in ['new_search', 'saved_search', 'addition']:
+                        st.session_state.selected_recipe_id = None
+                        st.session_state.previous = []
+                    eq = set(equipment)
+                    if not eq and 'ไมโครเวฟ' in query and any(s in query for s in ['เฉพาะ', 'เท่านั้น']):
+                        eq = {'ไมโครเวฟ'}
+                    answer['request'] = dict(intent=plan['intent'], ingredients=sorted(pantry), equipment=sorted(eq), top_k=top_k)
+                    stage = 'retrieval_or_groq'
+                    adapter = LiveRecipeAdapter(retriever, Groq(api_key=key, timeout=30, max_retries=0), model_name)
+                    response = adapter.answer_request(
+                        query, pantry, eq, st.session_state.previous, st.session_state.selected_recipe_id, top_k=top_k, unknown=plan['unknown'])
+                    answer['response'] = response
+                    answer['content'] = response.get('content', response['answer'])
+                    if response['status'] == 'ok':
+                        st.session_state.previous = [v['recipe_id'] for v in response['recipes']]
+                        st.session_state.selected_recipe_id = response.get('selected_recipe_id')
+            except AuthenticationError as error:
+                log_failure('groq_api', error, model_name)
+                answer['content'] = 'Groq API Key ไม่ถูกต้อง กรุณาตรวจค่าใน Secrets'
+            except RateLimitError as error:
+                log_failure('groq_api', error, model_name)
+                answer['content'] = 'ใช้งานถึงขีดจำกัดของ Groq แล้ว กรุณาลองใหม่ภายหลัง'
+            except APITimeoutError as error:
+                log_failure('groq_api', error, model_name)
+                answer['content'] = 'Groq ใช้เวลาตอบนานเกินกำหนด กรุณาลองใหม่'
+            except APIConnectionError as error:
+                log_failure('groq_api', error, model_name)
+                answer['content'] = 'เชื่อมต่อ Groq ไม่สำเร็จ กรุณาตรวจการเชื่อมต่อและชื่อโมเดลใน Secrets'
+            except APIStatusError as error:
+                log_failure('groq_api', error, model_name)
+                answer['content'] = f'Groq API ส่ง HTTP {error.status_code} กรุณาตรวจชื่อโมเดลและการตั้งค่า API ใน Secrets หรือดู Cloud logs'
+            except LLMParseError as error:
+                log_failure('groq_parse', error, model_name)
+                answer['content'] = 'Groq ส่งคำตอบว่าง ไม่ครบ หรืออ่าน JSON ไม่ได้ กรุณาลองใหม่หรือตรวจ Cloud logs'
+            except LLMValidationError as error:
+                log_failure('groq_validation', error, model_name)
+                answer['content'] = 'คำตอบ Groq ไม่ผ่านการตรวจรหัสสูตรหรือแหล่งอ้างอิง จึงยังไม่แสดงสูตร กรุณาลองใหม่'
+            except LLMNoSelectionError as error:
+                log_failure('groq_selection', error, model_name)
+                answer['content'] = 'พบสูตรที่เกี่ยวข้องในเอกสาร แต่ Groq ยังไม่เลือกเมนูจาก Context กรุณาลองใหม่หรือระบุคำถามให้ชัดเจน'
+            except ValueError as error:
+                log_failure(stage, error, model_name)
+                answer['content'] = 'คำตอบหรือข้อมูลไม่ผ่านการตรวจสอบ จึงไม่แสดงคำตอบ กรุณาลองใหม่หรือตรวจคลังเอกสาร'
+            except Exception as error:
+                log_failure(stage, error, model_name)
+                answer['content'] = 'โหลดโมเดลหรือค้นหาไม่สำเร็จ กรุณาตรวจ dependencies และการดาวน์โหลดโมเดลครั้งแรก'
+        if 'response' not in answer and key:
+            answer['response'] = dict(status='error', answer=answer['content'])
+            if adapter is not None and hasattr(adapter, 'last_trace'):
+                answer['response']['retrieval'] = adapter.last_trace
+                answer['response']['effective'] = answer.get('request', {})
+        st.session_state.messages.append(answer)
+    finally:
+        finish(st.session_state)
     st.rerun()

@@ -2,7 +2,7 @@ from html import escape
 import streamlit as st
 from presentation import EXAMPLES, UNANSWERABLE_EXAMPLES
 
-def samples():
+def samples(on_submit=None, disabled=False):
     selected = None
     groups = st.tabs(['ลองถามจากข้อมูลในคลังสูตร', 'ลองถามสิ่งที่เอกสารไม่ได้ระบุ'])
     for group, examples, prefix in zip(groups, [EXAMPLES, UNANSWERABLE_EXAMPLES], ['sample', 'unsupported']):
@@ -12,9 +12,22 @@ def samples():
                 with columns[n % 2]:
                     with st.container(key=f'sample_card_{prefix}_{n}'):
                         st.caption(f'{icon} {title}')
-                        if st.button(query, key=f'{prefix}_{n}', width='stretch', wrap=True):
-                            selected = query
+                        if st.button(query, key=f'{prefix}_{n}', width='stretch', wrap=True, disabled=disabled,
+                                     on_click=on_submit, args=(query,) if on_submit else None):
+                            if on_submit is None:
+                                selected = query
     return selected
+
+
+def sidebar_samples(on_submit, disabled=False):
+    for label, examples, prefix in [
+        ('คำถามที่เอกสารตอบได้', EXAMPLES, 'sidebar_sample'),
+        ('คำถามที่เอกสารไม่ได้ระบุ', UNANSWERABLE_EXAMPLES, 'sidebar_unsupported'),
+    ]:
+        st.caption(label)
+        for n, (_, _, query) in enumerate(examples):
+            st.button(query, key=f'{prefix}_{n}', width='stretch', wrap=True,
+                      on_click=on_submit, args=(query,), disabled=disabled)
 
 def retrieval_evidence(response, recipe_id=None):
     trace = response.get('retrieval')
@@ -104,9 +117,6 @@ def answer_message(message, on_select, on_clarify, on_evidence):
         with st.container(key=f"assistant_bubble_{message['id']}", width='content'):
             st.markdown(message['content'])
         return
-    effective = response.get('effective', message.get('request', {}))
-    if effective:
-        st.caption('วัตถุดิบที่ใช้ค้น: ' + (', '.join(effective.get('ingredients', [])) or 'ยังไม่ได้ระบุ') + ' • อุปกรณ์: ' + (', '.join(effective.get('equipment', [])) or 'ยังไม่ได้ระบุ / ไม่กรอง'))
     status = response['status']
     with st.container(key=f"assistant_bubble_{message['id']}", width='content'):
         if status == 'error':
@@ -118,11 +128,15 @@ def answer_message(message, on_select, on_clarify, on_evidence):
             st.caption('เอกสารไม่มีข้อมูลรองรับข้อที่ถาม หรือข้อมูลคำถามยังไม่ชัดเจน')
         else:
             st.markdown(response['answer'])
+    effective = response.get('effective', message.get('request', {}))
+    if effective:
+        st.caption('วัตถุดิบที่ใช้ค้น: ' + (', '.join(effective.get('ingredients', [])) or 'ยังไม่ได้ระบุ') + ' • อุปกรณ์: ' + (', '.join(effective.get('equipment', [])) or 'ยังไม่ได้ระบุ / ไม่กรอง'))
     if response.get('retrieval'):
         st.button('ดูหลักฐาน', key=f"evidence_turn_{message['id']}", on_click=on_evidence, args=(message['id'], None))
     if status == 'needs_clarification':
         for option in response.get('options', []):
-            if st.button(option['name'], key=f"clarify_{message['id']}_{option['recipe_id']}"):
+            if st.button(option['name'], key=f"clarify_{message['id']}_{option['recipe_id']}",
+                         disabled=st.session_state.get('request_processing', False)):
                 on_clarify(option['recipe_id'], message['query'])
                 st.rerun()
     elif status == 'insufficient_context':
@@ -149,10 +163,11 @@ def user_bubble_html(text):
 
 def chat_turn(message, on_select, on_clarify, on_evidence):
     role = message['role']
-    with st.container(key=f"chat_{role}_{message['id']}"):
-        with st.chat_message(role):
+    with st.container(key=f"chat_{role}_{message['id']}", horizontal=True,
+                      horizontal_alignment='right' if role == 'user' else 'left', gap=None):
+        with st.chat_message(role, width='content' if role == 'user' else 'stretch'):
             if role == 'user':
-                st.html(user_bubble_html(message['content']))
+                st.html(user_bubble_html(message['content']), width='content')
             else:
                 answer_message(message, on_select, on_clarify, on_evidence)
 
