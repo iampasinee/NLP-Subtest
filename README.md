@@ -35,10 +35,10 @@ python -m streamlit run app.py
 
 ```toml
 GROQ_API_KEY = "YOUR_GROQ_API_KEY"
-GROQ_MODEL = "llama-3.3-70b-versatile"
+GROQ_MODEL = "openai/gpt-oss-120b"
 ```
 
-ค่าข้างบนเป็น placeholder เท่านั้น แอปอ่านคีย์จาก `st.secrets['GROQ_API_KEY']` ชื่อโมเดลเปลี่ยนได้ผ่าน Secrets ตรวจรายชื่อจาก [Groq Supported Models](https://console.groq.com/docs/models) เมื่อพัฒนาวันที่ 5 ตุลาคม 2569 พบ `llama-3.3-70b-versatile` อยู่ในรายชื่อโมเดลที่รองรับ ไม่รับประกันโควตาหรือการเปิดสิทธิ์ของแต่ละบัญชี หากโมเดลไม่เปิดให้ใช้ให้เปลี่ยนเป็นโมเดลในบัญชีที่รองรับ JSON response format
+ค่าข้างบนเป็น placeholder เท่านั้น แอปอ่านคีย์และโมเดลจาก Streamlit Secrets จริง โดยค่าเริ่มต้นของ `GROQ_MODEL` คือ `openai/gpt-oss-120b` ตรวจ API กับ [Groq Structured Outputs](https://console.groq.com/docs/structured-outputs) และ [Reasoning](https://console.groq.com/docs/reasoning) วันที่ 5 ตุลาคม 2569 รุ่น GPT-OSS ใช้ `max_completion_tokens=2048`, `reasoning_effort='low'`, `include_reasoning=False`, `stream=False` และ strict JSON schema ไม่ส่ง `reasoning_format` ที่ GPT-OSS ไม่รองรับ อ่านผลจาก `choices[0].message.content` หากเปลี่ยนไปใช้โมเดลอื่น แอปใช้ JSON mode และไม่ส่งพารามิเตอร์ reasoning ของ GPT-OSS ไม่รับประกันโควตาหรือการเปิดสิทธิ์ของแต่ละบัญชี
 
 แอปรองรับข้อความแจ้ง Key ไม่ถูกต้อง, timeout 30 วินาที, rate limit และปัญหาการเชื่อมต่อ โดยไม่แสดง exception ดิบหรือคีย์ `.gitignore` กัน `.streamlit/secrets.toml`, `.env`, cache และ environment ไว้แล้ว
 
@@ -69,7 +69,7 @@ GROQ_MODEL = "llama-3.3-70b-versatile"
 5. **Metadata checks:** ภายในชุดที่ semantic retrieval พบ ตรวจวัตถุดิบทั้งหมดรวมเครื่องปรุงและตรวจอุปกรณ์ที่แจ้ง จัดอันดับตามจำนวนวัตถุดิบที่ขาดก่อน แล้ว similarity ไม่ใช้การตรวจวัตถุดิบแทน semantic retrieval การค้นทั่วไปใช้ cosine threshold 0.28 เป็นค่าตั้งต้นสำหรับคลังนี้ ต้องปรับและประเมินใหม่เมื่อเปลี่ยนคลัง
 6. **Follow-up:** เก็บ recipe_id ของคำตอบล่าสุดใน `st.session_state` และเติมชื่อสูตรที่อ้างถึงลง retrieval query ไม่คัดลอกบทสนทนาเต็มเข้า prompt เพื่อไม่ให้ข้อมูลเก่าปะปนกับหลักฐาน
 7. **Groq/Answer:** ส่งคำถาม สูตรเต็ม และผลตรวจเข้า context-grounded prompt LLM ตอบ JSON เลือก recipe_id และ citations เท่านั้น ตรวจ ID ว่าอยู่ใน Context จริง จากนั้นแอปแสดงข้อมูลต้นฉบับพร้อมชื่อไฟล์/สูตร เป็นรูปแบบ extractive RAG ที่เลือกเพื่อป้องกันการสร้างปริมาณ เวลา หรือขั้นตอนใหม่ ข้อความในเอกสารถือเป็นข้อมูล ไม่ใช่คำสั่งให้โมเดลทำตาม
-8. **Cache:** `st.cache_resource` สำหรับโมเดล (หนึ่งรายการ) และ index (สองรายการ) key ของ index เป็น SHA-256 จากชื่อและเนื้อหา `recipes.md` เมื่อข้อมูลเปลี่ยนสร้าง index ใหม่ ไม่รัน OCR: สูตรเตรียมเป็นข้อความโครงสร้างตั้งแต่ต้น แหล่งอ้างอิงทุกสูตรเป็น `recipes.md` ร่วมกับชื่อสูตรและ recipe_id จึงแยกสูตรในไฟล์เดียวกันได้
+8. **Cache:** `st.cache_resource` สำหรับโมเดล (หนึ่งรายการ) และ index (สองรายการ) key ของ index เป็น SHA-256 จากชื่อ/เนื้อหา `recipes.md`, implementation ของ `rag.py`, ชื่อ embedding model และ `PIPELINE_VERSION` เมื่อเอกสารหรือโค้ด parse/chunk เปลี่ยนจะสร้าง index ใหม่ ไม่มี index JSON บนดิสก์ แหล่งอ้างอิงทุกสูตรเป็น `recipes.md` ร่วมกับชื่อสูตรและ recipe_id จึงแยกสูตรในไฟล์เดียวกันได้
 
 Alias ที่ทบทวนได้อยู่ใน `rag.ALIASES`: ไข่ ↔ ไข่ไก่, ซีอิ้วขาว ↔ ซีอิ๊วขาว, หอมต้น ↔ ต้นหอม ไม่รวมไข่เป็ด ไข่เค็ม เต้าหู้ไข่ หรือเห็ดต่างชนิดเข้าด้วยกัน หากเพิ่ม alias ต้องตรวจความหมายก่อน
 
@@ -111,7 +111,7 @@ Alias ที่ทบทวนได้อยู่ใน `rag.ALIASES`: ไข�
 - ไม่รองรับข้อมูลโภชนาการ ค่าความร้อน/เวลาตัวเลข อายุการเก็บ วิธีแทนวัตถุดิบ หรือคำแนะนำโรค คำถามเหล่านี้ปฏิเสธด้วย “ไม่พบข้อมูลที่ตรงเงื่อนไขในเอกสาร” เพราะคลังปัจจุบันไม่มีข้อมูล ไม่ได้เดาตัวเลข
 - คำตอบแสดงสูตรเต็มเพื่อให้ตรวจสอบได้ ไม่ใช่คำตอบสรุปอิสระของ LLM อาจยาวเมื่อเสนอสามเมนู
 - เก็บประวัติใน session เท่านั้น การ reload/session หมดอายุอาจล้างประวัติ ไม่มีระบบสมาชิก
-- ยังไม่ได้ทดสอบ Groq จริงเพราะไม่มี Key และยังไม่ได้ทดสอบ hosting/หน้าจอมือถือจริง ดูผลที่ยืนยันแล้วในรายงาน
+- รอบแก้บั๊กทดสอบ Groq จริงด้วย local Secrets แล้ว: smoke ทั้ง streaming/non-streaming, คำถามที่รายงานทั้ง 4 ข้อผ่าน retrieval → Groq → validation และ AppTest เรียก Groq จริงสำหรับ R04 แสดงหลักฐาน/ปริมาณได้ ยังไม่ได้ยืนยันโค้ดบน Cloud หรือหน้าจอมือถือจริง ดู `BUGFIX_REPORT.md`
 
 ## ไฟล์ส่งงาน
 

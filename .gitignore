@@ -7,3 +7,4 @@ pytest-cache-files-*/
 .env.*
 .cache/
 test-results.local.json
+groq_diagnostics.local.json

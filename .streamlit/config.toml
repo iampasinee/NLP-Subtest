@@ -6,3 +6,4 @@ textColor = "#352A24"
 font = "sans serif"
 [server]
 headless = true
+fileWatcherType = "none"

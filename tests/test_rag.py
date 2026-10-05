@@ -153,7 +153,9 @@ def test_llm_citation_validation_and_exact_evidence(retriever):
 
 def test_no_key_ui():
     from streamlit.testing.v1 import AppTest
-    at = AppTest.from_file(str(ROOT / 'app.py'), default_timeout=20).run()
+    at = AppTest.from_file(str(ROOT / 'app.py'), default_timeout=20)
+    at.secrets['GROQ_API_KEY'] = ''
+    at.run()
     assert not at.exception
     assert any('ยังไม่ได้ตั้งค่า' in i.value for i in at.info)
     at.chat_input[0].set_value('มีไข่ ข้าวสวย').run()

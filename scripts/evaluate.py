@@ -6,7 +6,7 @@ import tomllib
 from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
-from rag import MODEL, Retriever, candidates, load_recipes, select_with_llm, render_answer
+from rag import MODEL, DEFAULT_GROQ_MODEL, Retriever, candidates, load_recipes, select_with_llm, render_answer
 
 def main():
     from sentence_transformers import SentenceTransformer
@@ -24,7 +24,7 @@ def main():
             hits = candidates(retriever, row['question'], set(filter(None, row['pantry'].split('|'))),
                               set(filter(None, row['equipment'].split('|'))), list(filter(None, row['previous_recipe_ids'].split('|'))))
             if live and hits:
-                hits = select_with_llm(client, config.get('GROQ_MODEL', 'llama-3.3-70b-versatile'), row['question'], hits)
+                hits = select_with_llm(client, config.get('GROQ_MODEL', DEFAULT_GROQ_MODEL), row['question'], hits)
             ids = [h['recipe']['recipe_id'] for h in hits]
             expected = list(filter(None, row['expected_recipe_ids'].split('|')))
             passed = set(expected).issubset(ids) if row['answerable'] == 'yes' else not ids

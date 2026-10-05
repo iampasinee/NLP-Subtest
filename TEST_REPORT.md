@@ -1,6 +1,6 @@
 # ผลทดสอบจริง — 5 ตุลาคม 2569
 
-สภาพแวดล้อม: Windows, Python 3.12, Streamlit 1.65.0, sentence-transformers 6.1.0, FAISS CPU 1.15.1, Groq SDK 1.7.0, NumPy 2.5.3 ใช้โมเดล multilingual MiniLM จริงบน CPU ไม่มี Groq API Key สำหรับการทดสอบจริง
+สภาพแวดล้อม: Windows, Python 3.12, Streamlit 1.65.0, sentence-transformers 6.1.0, FAISS CPU 1.15.1, Groq SDK 1.7.0, NumPy 2.5.3 ใช้โมเดล multilingual MiniLM จริงบน CPU รอบแก้บั๊กพบ local Streamlit Secrets และทดสอบ Groq จริงแล้ว ดูรายละเอียดใน BUGFIX_REPORT.md
 
 | รายการ | ผลที่รันจริง |
 |---|---|
@@ -8,11 +8,11 @@
 | รักษาข้อมูลเดิมจาก JSON | ผ่าน: เทียบทุกฟิลด์ทั้ง 20 สูตรรวมลำดับส่วนผสม และตรวจ SHA-256 ของข้อมูลเดิม |
 | Embedding model | 384 dimensions, max_seq_length 128 tokens |
 | Structure-based chunks | 160 chunks จากหัวข้อย่อย Markdown, ยาวที่สุด 111 tokens รวม prefix/special tokens |
-| pytest | 25 tests ผ่าน รวม AppTest และ Groq client จำลอง |
+| pytest | 47 tests ผ่าน รวม AppTest และ Groq client จำลอง |
 | คำถามใน CSV / Semantic Retrieval จริง | 20/20 ผ่าน ดู `retrieval_results.json` |
 | Dependencies | `pip check`: No broken requirements found |
 | เว็บ Streamlit ในเครื่อง | รอบก่อนรันที่ localhost:8501 และ health check 200; รอบ Markdown ตรวจด้วย AppTest |
-| Groq จริง | **ยังไม่ได้ทดสอบ — ไม่มี API Key** |
+| Groq จริง | Smoke ก่อน RAG ผ่านทั้ง non-stream/stream; คำถามที่รายงาน 4/4 ผ่าน API + validation; AppTest จริง R04 มีหลักฐานและ 1 ฟอง |
 | Hosting บน Community Cloud | **ยังไม่ได้ Deploy** |
 | ภาพหน้าเว็บ desktop/mobile | **ยังไม่ได้ตรวจด้วย browser จริง** เครื่องมือ Browser Use ปฏิเสธสิทธิ์เปิด localhost |
 
@@ -30,4 +30,4 @@ AppTest ของ Groq ใช้ client จำลองสำหรับ Key �
 
 การทดสอบ pytest ครั้งแรกติดสิทธิ์ Temp ของ sandbox (9 ผ่าน 3 setup errors) หลังรันด้วยสิทธิ์ที่อนุญาตแล้วผ่านทั้งหมด ไม่ถือ setup errors เดิมเป็นผลผ่าน คลังข้อมูลและไฟล์ Notebook ตัวอย่างเดิมยังอยู่ ไม่ได้ Push/Deploy
 
-ก่อนส่งงาน: ใส่ Key ของตนเอง รัน `python scripts/evaluate.py --llm` และตรวจคำตอบบนเว็บเทียบเฉลยด้วยตนเอง ตรวจสูตรตัวอย่างก่อนใช้จริง ทดสอบมือถือและ Capture ภาพจริง จากนั้น Deploy แล้วกรอก URL จริงใน README/Notebook
+ผลทดสอบ Groq จริงข้างต้นไม่ใช่ผลของ client จำลอง และไม่ได้หมายความว่ารันชุด CSV ทั้ง 20 ข้อกับ API แล้ว ก่อนส่งงานตรวจคำตอบเพิ่มเติมเทียบเฉลย ตรวจสูตรตัวอย่างก่อนใช้จริง ทดสอบมือถือและ Capture ภาพจริง พร้อมตรวจ Cloud ใช้ commit ล่าสุดตาม BUGFIX_REPORT.md

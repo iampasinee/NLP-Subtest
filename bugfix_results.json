@@ -1,0 +1,153 @@
+{
+  "pipeline_version": "markdown-rag-2026-10-05-v2",
+  "index_key": "b0b97d695585",
+  "live": false,
+  "cases": [
+    {
+      "question": "ไข่",
+      "normalized_ingredients": [
+        "ไข่ไก่"
+      ],
+      "candidates": [
+        {
+          "recipe_id": "R03",
+          "score": 0.68214,
+          "missing": [
+            "นมจืด",
+            "เนย",
+            "เกลือ"
+          ]
+        },
+        {
+          "recipe_id": "R02",
+          "score": 0.66795,
+          "missing": [
+            "ต้นหอม",
+            "น้ำปลา",
+            "น้ำมันพืช"
+          ]
+        },
+        {
+          "recipe_id": "R13",
+          "score": 0.62495,
+          "missing": [
+            "ข้าวโอ๊ต",
+            "น้ำ",
+            "ซีอิ๊วขาว"
+          ]
+        }
+      ],
+      "retrieval_answerable": true,
+      "stage": "context_ready_no_api_call"
+    },
+    {
+      "question": "ไข่ไก่",
+      "normalized_ingredients": [
+        "ไข่ไก่"
+      ],
+      "candidates": [
+        {
+          "recipe_id": "R03",
+          "score": 0.63191,
+          "missing": [
+            "นมจืด",
+            "เนย",
+            "เกลือ"
+          ]
+        },
+        {
+          "recipe_id": "R02",
+          "score": 0.6286,
+          "missing": [
+            "ต้นหอม",
+            "น้ำปลา",
+            "น้ำมันพืช"
+          ]
+        },
+        {
+          "recipe_id": "R13",
+          "score": 0.61037,
+          "missing": [
+            "ข้าวโอ๊ต",
+            "น้ำ",
+            "ซีอิ๊วขาว"
+          ]
+        }
+      ],
+      "retrieval_answerable": true,
+      "stage": "context_ready_no_api_call"
+    },
+    {
+      "question": "มีไข่ ข้าวสวย และต้นหอม ทำอะไรได้บ้าง",
+      "normalized_ingredients": [
+        "ข้าวสวย",
+        "ต้นหอม",
+        "ไข่ไก่"
+      ],
+      "candidates": [
+        {
+          "recipe_id": "R01",
+          "score": 0.69969,
+          "missing": [
+            "น้ำมันพืช",
+            "ซีอิ๊วขาว"
+          ]
+        },
+        {
+          "recipe_id": "R05",
+          "score": 0.61965,
+          "missing": [
+            "น้ำ",
+            "ซีอิ๊วขาว"
+          ]
+        },
+        {
+          "recipe_id": "R02",
+          "score": 0.61941,
+          "missing": [
+            "น้ำปลา",
+            "น้ำมันพืช"
+          ]
+        }
+      ],
+      "retrieval_answerable": true,
+      "stage": "context_ready_no_api_call"
+    },
+    {
+      "question": "ไข่ตุ๋นไมโครเวฟใช้ไข่กี่ฟอง",
+      "normalized_ingredients": [],
+      "candidates": [
+        {
+          "recipe_id": "R04",
+          "score": 0.71873,
+          "missing": [
+            "ไข่ไก่",
+            "น้ำ",
+            "ซีอิ๊วขาว",
+            "ต้นหอม"
+          ]
+        }
+      ],
+      "retrieval_answerable": true,
+      "stage": "context_ready_no_api_call"
+    },
+    {
+      "question": "ขอสูตรพิซซ่าไข่",
+      "normalized_ingredients": [
+        "ไข่ไก่"
+      ],
+      "candidates": [],
+      "retrieval_answerable": false,
+      "stage": "retrieval_rejected"
+    },
+    {
+      "question": "ข้าวผัดไข่มีกี่แคลอรี",
+      "normalized_ingredients": [],
+      "candidates": [],
+      "retrieval_answerable": false,
+      "stage": "retrieval_rejected"
+    }
+  ],
+  "recipes": 20,
+  "chunks": 160
+}
