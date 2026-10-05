@@ -1,14 +1,14 @@
 from pathlib import Path
 import streamlit as st
 from groq import Groq, AuthenticationError, APITimeoutError, RateLimitError, APIConnectionError, APIStatusError
-from rag import (MODEL, NO_DATA, PIPELINE_VERSION, LLMParseError, LLMValidationError, LLMNoSelectionError, Retriever, candidates, extract_names, fingerprint,
-                 load_recipes, render_answer, select_with_llm, update_pantry)
+from rag import (MODEL, PIPELINE_VERSION, LLMParseError, LLMValidationError, LLMNoSelectionError, Retriever, extract_names, fingerprint,
+                 load_recipes, update_pantry)
 from configuration import read_configuration
 from diagnostics import log_event, log_failure
 from groq_support import smoke_test
 
 ROOT = Path(__file__).resolve().parent
-st.set_page_config(page_title='ครัวคิดให้ · ผู้ช่วยเลือกเมนู', page_icon='🍲', layout='centered')
+st.set_page_config(page_title='มีอะไร ทำอะไรดี', page_icon='🍲', layout='centered')
 
 @st.cache_resource(max_entries=1)
 def embedding_model(model_name):
@@ -23,9 +23,36 @@ def knowledge_index(digest):
 def configuration():
     return read_configuration(st.secrets)
 
-st.title('🍲 ครัวคิดให้')
-st.write('มีอะไรในครัววันนี้? เลือกเมนูจากสูตรในเอกสาร พร้อมดูสิ่งที่ขาดและหลักฐานทุกคำตอบ')
-st.caption('โครงงาน RAG • สูตรตัวอย่างที่สร้างโดย AI ต้องตรวจทานก่อนใช้จริง')
+from presentation import LiveRecipeAdapter, question_kind
+from ui.styles import CSS
+from ui.components import samples, answer_message
+
+st.html('<style>' + CSS + '</style>')
+for name, default in [('messages', []), ('previous', []), ('pantry', set()), ('selected_recipe_id', None)]:
+    if name not in st.session_state:
+        st.session_state[name] = default
+for name, value in st.session_state.pop('pending_form_values', {}).items():
+    st.session_state[name] = value
+
+def reset():
+    for name in ['messages', 'previous', 'pantry', 'selected_recipe_id', 'pending_query',
+                 'form_ingredients', 'form_seasonings', 'form_equipment', 'pending_form_values']:
+        st.session_state.pop(name, None)
+
+def select_recipe(recipe_id):
+    st.session_state.selected_recipe_id = recipe_id
+
+def clarify(recipe_id, query):
+    select_recipe(recipe_id)
+    st.session_state.pending_query = query
+
+left, right = st.columns([5, 1], gap='small')
+with left:
+    st.title('มีอะไร ทำอะไรดี')
+    st.write('ค้นเมนูจากวัตถุดิบที่มี พร้อมสูตรและแหล่งอ้างอิง')
+with right:
+    st.button('เริ่มใหม่', key='reset_header', on_click=reset, width='stretch')
+st.caption('สูตรตัวอย่างสร้างโดย AI ต้องตรวจทานก่อนใช้จริง')
 try:
     key, model_name = configuration()
 except ValueError as error:
@@ -35,23 +62,27 @@ except ValueError as error:
 index_key = fingerprint(ROOT / 'data')
 log_event('startup', model=model_name, pipeline_version=PIPELINE_VERSION, doc_hash=index_key[:12])
 if not key:
-    st.info('ยังไม่ได้ตั้งค่า Groq API: สร้าง .streamlit/secrets.toml ตาม secrets.example.toml แล้วใส่ GROQ_API_KEY หรือเพิ่มใน Secrets บน Community Cloud คุณยังเปิดดูคลังสูตรได้ แต่ระบบจะไม่สร้างคำตอบจาก LLM')
+    st.info('ยังไม่ได้ตั้งค่า Groq API: ใส่ GROQ_API_KEY ใน Streamlit Secrets ระบบจะยังไม่สร้างคำตอบจาก LLM')
 recipes = load_recipes(ROOT / 'data')
 names = {i['name'] for r in recipes for i in r['ingredients']}
+seasonings = {i['name'] for r in recipes for i in r['ingredients'] if i['name'] in r['_sections']['เครื่องปรุง']}
 equipment_names = {e for r in recipes for e in r['equipment']}
+search_query = None
+with st.expander('วัตถุดิบ เครื่องปรุง และอุปกรณ์ของคุณ', expanded=False):
+    a, b = st.columns(2)
+    with a:
+        ingredients_text = st.text_area('วัตถุดิบที่มี', key='form_ingredients', placeholder='ไข่ ข้าวสวย ต้นหอม')
+    with b:
+        seasonings_text = st.text_area('เครื่องปรุงที่มี', key='form_seasonings', placeholder='ซีอิ๊วขาว น้ำมันพืช')
+    equipment = st.multiselect('อุปกรณ์ที่มี', sorted(equipment_names), key='form_equipment')
+    st.caption('ไม่เลือกอุปกรณ์ = ยังไม่ได้ระบุและไม่กรองอุปกรณ์ หากเลือก ให้ระบุทั้งหมดที่มี รวมถ้วย ช้อน มีด ตามจริง')
+    st.caption('ตรวจชื่อวัตถุดิบรวมเครื่องปรุง ยังไม่ยืนยันว่าปริมาณที่มีเพียงพอ')
+    if st.button('ค้นเมนูจากของที่มี', type='primary', width='stretch'):
+        search_query = 'มี ' + ingredients_text + ' ' + seasonings_text + ' ทำอะไรได้บ้าง'
 with st.sidebar:
-    st.header('ของที่มีในครัว')
-    pantry_text = st.text_area('วัตถุดิบเพิ่มเติม', placeholder='ไข่, ข้าวสวย, ซีอิ๊วขาว, น้ำมันพืช')
-    equipment = st.multiselect('อุปกรณ์ที่มี (ไม่เลือก = ยังไม่ตรวจ)', sorted(equipment_names))
-    st.caption('หากเลือกอุปกรณ์ ต้องเลือกทั้งหมดที่มี เช่น ไมโครเวฟ ถ้วย ช้อน มีด ระบบไม่สมมติว่ามีอุปกรณ์อื่น')
-    st.caption('ตรวจชื่อวัตถุดิบรวมเครื่องปรุง แต่ยังไม่ตรวจว่าปริมาณที่มีเพียงพอ')
-    if st.button('เริ่มบทสนทนาใหม่', width='stretch'):
-        st.session_state.messages = []; st.session_state.previous = []; st.session_state.pantry = set()
-        st.rerun()
-    st.caption(f'คลังสูตร {len(recipes)} เมนู · CPU · {model_name}')
-    st.caption(f'เวอร์ชัน {PIPELINE_VERSION} · index {index_key[:12]}')
-    with st.expander('ตรวจการเชื่อมต่อ Groq'):
-        st.caption('ส่งข้อความทดสอบที่ไม่ว่าง ก่อนผ่าน RAG ใช้คีย์จาก Secrets เท่านั้น')
+    with st.expander('สำหรับนักพัฒนา'):
+        st.caption(f'คลังสูตร {len(recipes)} เมนู · CPU · {model_name}')
+        st.caption(f'เวอร์ชัน {PIPELINE_VERSION} · index {index_key[:12]}')
         if st.button('ทดสอบ Groq โดยตรง', disabled=not key):
             try:
                 smoke_test(Groq(api_key=key, timeout=30, max_retries=0), model_name)
@@ -59,59 +90,54 @@ with st.sidebar:
             except Exception as error:
                 log_failure('smoke', error, model_name)
                 status = getattr(error, 'status_code', None)
-                st.error(f'การทดสอบ Groq ไม่สำเร็จ: {type(error).__name__}' + (f' (HTTP {status})' if status else '') + ' ดูรายละเอียดขั้นตอนใน Cloud logs')
-    with st.expander('เปิดดูคลังสูตร'):
-        for r in recipes:
-            st.write(f"{r['recipe_id']} · {r['name']}")
-            st.json(r, expanded=False)
+                st.error(f'การทดสอบ Groq ไม่สำเร็จ: {type(error).__name__}' + (f' (HTTP {status})' if status else '') + ' ดู Cloud logs')
 
-for name, default in [('messages', []), ('previous', []), ('pantry', set())]:
-    if name not in st.session_state:
-        st.session_state[name] = default
-
-def show_message(m):
-    with st.chat_message(m['role']):
-        st.markdown(m['content'])
-        if m.get('evidence'):
-            with st.expander('ดูหลักฐานอ้างอิงและคะแนนความคล้าย'):
-                for h in m['evidence']:
-                    r = h['recipe']
-                    st.caption(f"{r['document']} • {r['name']} [{r['recipe_id']}] • similarity {h['score']:.3f} (ไม่ใช่ความมั่นใจ)")
-                    st.text(h['hit']['text'])
-                    st.json(r, expanded=False)
-
+selected_id = st.session_state.selected_recipe_id
+if selected_id:
+    selected_name = next(r['name'] for r in recipes if r['recipe_id'] == selected_id)
+    st.info(f'กำลังถามต่อเกี่ยวกับ {selected_name} [{selected_id}]')
+    st.button('ยกเลิกการเลือกเมนู', on_click=select_recipe, args=(None,))
 for message in st.session_state.messages:
-    show_message(message)
-examples = ['มีไข่ ข้าวสวย และต้นหอม ทำอะไรได้บ้าง', 'ไข่ตุ๋นไมโครเวฟใช้ไข่กี่ฟอง', 'เมนูที่สองทำอย่างไร']
-with st.expander('ลองถามแบบนี้'):
-    example_query = None
-    for q in examples:
-        if st.button(q, width='stretch'):
-            example_query = q
-query = st.chat_input('พิมพ์วัตถุดิบหรือถามเกี่ยวกับสูตร…', max_chars=2000, submit_mode='disable') or example_query
+    with st.chat_message(message['role']):
+        if message['role'] == 'user':
+            st.markdown(message['content'])
+        else:
+            answer_message(message, select_recipe, clarify)
+example_query = samples() if not st.session_state.messages else None
+query = st.chat_input('พิมพ์วัตถุดิบ หรือถามเกี่ยวกับสูตร…', max_chars=2000, submit_mode='disable') or search_query or example_query or st.session_state.pop('pending_query', None)
 if query:
-    user = dict(role='user', content=query)
-    st.session_state.messages.append(user); show_message(user)
-    answer = dict(role='assistant', content='', evidence=[])
+    st.session_state.messages.append(dict(role='user', content=query))
+    with st.chat_message('user'):
+        st.markdown(query)
+    answer = dict(role='assistant', id=str(len(st.session_state.messages)), query=query, content='')
     if not key:
         answer['content'] = 'ยังไม่ได้เรียก LLM กรุณาตั้งค่า GROQ_API_KEY ตามข้อความด้านบน'
     else:
         stage = 'index'
         try:
-            with st.spinner('ค้นสูตรและตรวจเงื่อนไขจากเอกสาร…'):
+            with st.spinner('กำลังค้นสูตรและตรวจข้อมูล…'):
                 retriever = knowledge_index(index_key)
-                st.session_state.pantry = update_pantry(query, st.session_state.pantry, names, recipes)
-                pantry = st.session_state.pantry | extract_names(pantry_text, names)
+                form_pantry = extract_names(ingredients_text + ' ' + seasonings_text, names)
+                # Asking an ingredient's quantity is not a claim of owning it.
+                pantry = form_pantry if question_kind(query) == 'fact' else update_pantry(query, form_pantry, names, recipes)
+                st.session_state.pantry = pantry
                 eq = set(equipment)
+                pending = {}
+                if pantry != form_pantry:
+                    pending['form_ingredients'] = ', '.join(sorted(pantry - seasonings))
+                    pending['form_seasonings'] = ', '.join(sorted(pantry & seasonings))
                 if not eq and 'ไมโครเวฟ' in query and any(s in query for s in ['เฉพาะ', 'เท่านั้น']):
                     eq = {'ไมโครเวฟ'}
-                stage = 'retrieval'
-                hits = candidates(retriever, query, pantry, eq, st.session_state.previous)
-                stage = 'groq'
-                selected = select_with_llm(Groq(api_key=key, timeout=30, max_retries=0), model_name, query, hits) if hits else []
-                stage = 'render'
-                answer['content'] = render_answer(selected); answer['evidence'] = selected
-                st.session_state.previous = [h['recipe']['recipe_id'] for h in selected]
+                    pending['form_equipment'] = list(eq)
+                st.session_state.pending_form_values = pending
+                stage = 'retrieval_or_groq'
+                response = LiveRecipeAdapter(retriever, Groq(api_key=key, timeout=30, max_retries=0), model_name).answer_request(
+                    query, pantry, eq, st.session_state.previous, st.session_state.selected_recipe_id)
+                answer['response'] = response
+                answer['content'] = response.get('content', response['answer'])
+                if response['status'] == 'ok':
+                    st.session_state.previous = [v['recipe_id'] for v in response['recipes']]
+                    st.session_state.selected_recipe_id = response.get('selected_recipe_id')
         except AuthenticationError as error:
             log_failure('groq_api', error, model_name)
             answer['content'] = 'Groq API Key ไม่ถูกต้อง กรุณาตรวจค่าใน Secrets'
@@ -142,4 +168,7 @@ if query:
         except Exception as error:
             log_failure(stage, error, model_name)
             answer['content'] = 'โหลดโมเดลหรือค้นหาไม่สำเร็จ กรุณาตรวจ dependencies และการดาวน์โหลดโมเดลครั้งแรก'
-    st.session_state.messages.append(answer); show_message(answer)
+    if 'response' not in answer and key:
+        answer['response'] = dict(status='error', answer=answer['content'])
+    st.session_state.messages.append(answer)
+    st.rerun()

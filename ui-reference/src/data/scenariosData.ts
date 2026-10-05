@@ -1,0 +1,541 @@
+/**
+ * src/data/scenariosData.ts
+ * Exact mirror of fixtures/scenarios.json conforming to PRD Section 9, 13
+ */
+
+export interface RecipeIngredient {
+  name: string;
+  amount: string;
+}
+
+export interface Recipe {
+  recipe_id: string;
+  name: string;
+  ingredient_match: "complete" | "missing" | "unknown";
+  matched_ingredients: string[];
+  missing_ingredients: string[];
+  quantity_check: "sufficient" | "insufficient" | "unknown";
+  equipment: string[];
+  equipment_match: "compatible" | "incompatible" | "unknown" | "unrestricted";
+  servings: string | null;
+  ingredients: RecipeIngredient[];
+  steps: string[];
+  source_ids: string[];
+}
+
+export interface Source {
+  source_id: string;
+  document_name: string;
+  recipe_id: string;
+  section: string;
+  page: number | null;
+  source_url: string | null;
+  excerpt: string;
+}
+
+export interface ClarificationOption {
+  recipe_id: string;
+  name: string;
+}
+
+export interface RAGResponse {
+  status: "ok" | "no_match" | "insufficient_context" | "needs_clarification" | "error";
+  answer: string;
+  recipes: Recipe[];
+  sources: Source[];
+  is_mock: boolean;
+  error_code: string | null;
+  clarification_options?: ClarificationOption[];
+}
+
+export interface ScenarioItem {
+  id: string;
+  title: string;
+  description: string;
+  response: RAGResponse;
+}
+
+export const SCENARIOS: ScenarioItem[] = [
+  {
+    id: "scenario_1_complete_unknown_qty",
+    title: "1. วัตถุดิบครบตามสูตร แต่ไม่ทราบปริมาณ",
+    description: "ผู้ใช้ระบุไข่ ข้าวสวย ต้นหอม น้ำมันพืช ซีอิ๊วขาว ครบทุกอย่าง",
+    response: {
+      status: "ok",
+      answer: "พบ 1 เมนูในข้อมูลตัวอย่างที่มีวัตถุดิบครบตามสูตรที่คุณระบุไว้",
+      recipes: [
+        {
+          recipe_id: "demo-001",
+          name: "ข้าวผัดไข่สูตรหอพัก",
+          ingredient_match: "complete",
+          matched_ingredients: ["ข้าวสวย", "ไข่ไก่", "น้ำมันพืช", "ซีอิ๊วขาว", "ต้นหอม"],
+          missing_ingredients: [],
+          quantity_check: "unknown",
+          equipment: ["กระทะ"],
+          equipment_match: "compatible",
+          servings: "1 จาน",
+          ingredients: [
+            { name: "ข้าวสวย", amount: "1 ถ้วย" },
+            { name: "ไข่ไก่", amount: "1 ฟอง" },
+            { name: "น้ำมันพืช", amount: "1 ช้อนโต๊ะ" },
+            { name: "ซีอิ๊วขาว", amount: "1 ช้อนชา" },
+            { name: "ต้นหอมซอย", amount: "1 ต้น" }
+          ],
+          steps: [
+            "ตั้งกระทะใส่น้ำมันพืชให้ร้อนด้วยไฟกลาง",
+            "ตอกไข่ไก่ลงไป ใช้ตะหลิวยีพอให้ไข่ขาวและไข่แดงเริ่มสุก",
+            "ใส่ข้าวสวยลงผัดคลุกเคล้าให้เข้ากัน ปรุงรสด้วยซีอิ๊วขาว",
+            "โรยต้นหอมซอย ผัดเร็วๆ อีก 30 วินาที แล้วปิดเตา จัดเสิร์ฟ"
+          ],
+          source_ids: ["demo-source-001"]
+        }
+      ],
+      sources: [
+        {
+          source_id: "demo-source-001",
+          document_name: "สูตรตัวอย่างสำหรับทดสอบหน้าจอ",
+          recipe_id: "demo-001",
+          section: "ข้าวผัดไข่สูตรหอพัก",
+          page: 1,
+          source_url: null,
+          excerpt: "ข้าวผัดไข่สูตรประหยัดสำหรับเด็กหอ ใช้วัตถุดิบพื้นฐาน 5 รายการ ผัดด้วยกระทะใบเดียวเสร็จใน 5 นาที"
+        }
+      ],
+      is_mock: true,
+      error_code: null,
+      clarification_options: []
+    }
+  },
+  {
+    id: "scenario_2_missing_condiments",
+    title: "2. มีวัตถุดิบหลัก แต่ยังขาดเครื่องปรุง",
+    description: "มีไข่ ข้าวสวย และต้นหอม แต่ไม่ได้ระบุน้ำมันพืชและซีอิ๊วขาว",
+    response: {
+      status: "ok",
+      answer: "พบ 2 เมนูในข้อมูลตัวอย่าง โดยทั้ง 2 เมนูยังมีวัตถุดิบหรือเครื่องปรุงที่ยังไม่ได้ระบุ",
+      recipes: [
+        {
+          recipe_id: "demo-001",
+          name: "ข้าวผัดไข่สูตรหอพัก",
+          ingredient_match: "missing",
+          matched_ingredients: ["ข้าวสวย", "ไข่ไก่", "ต้นหอม"],
+          missing_ingredients: ["น้ำมันพืช", "ซีอิ๊วขาว"],
+          quantity_check: "unknown",
+          equipment: ["กระทะ"],
+          equipment_match: "unrestricted",
+          servings: "1 จาน",
+          ingredients: [
+            { name: "ข้าวสวย", amount: "1 ถ้วย" },
+            { name: "ไข่ไก่", amount: "1 ฟอง" },
+            { name: "น้ำมันพืช", amount: "1 ช้อนโต๊ะ" },
+            { name: "ซีอิ๊วขาว", amount: "1 ช้อนชา" },
+            { name: "ต้นหอมซอย", amount: "1 ต้น" }
+          ],
+          steps: [
+            "ตั้งกระทะใส่น้ำมันพืชให้ร้อนด้วยไฟกลาง",
+            "ตอกไข่ไก่ลงไป ใช้ตะหลิวยีพอให้ไข่ขาวและไข่แดงเริ่มสุก",
+            "ใส่ข้าวสวยลงผัดคลุกเคล้าให้เข้ากัน ปรุงรสด้วยซีอิ๊วขาว",
+            "โรยต้นหอมซอย ผัดเร็วๆ แล้วปิดไฟ"
+          ],
+          source_ids: ["demo-source-001"]
+        },
+        {
+          recipe_id: "demo-002",
+          name: "ไข่ต้มยางมะตูมคลุกข้าว",
+          ingredient_match: "missing",
+          matched_ingredients: ["ไข่ไก่", "ข้าวสวย"],
+          missing_ingredients: ["น้ำปลา", "พริกป่น"],
+          quantity_check: "unknown",
+          equipment: ["หม้อ"],
+          equipment_match: "unrestricted",
+          servings: "1 จาน",
+          ingredients: [
+            { name: "ไข่ไก่", amount: "2 ฟอง" },
+            { name: "ข้าวสวย", amount: "1 ถ้วย" },
+            { name: "น้ำปลา", amount: "1 ช้อนโต๊ะ" },
+            { name: "พริกป่น", amount: "1/2 ช้อนชา" }
+          ],
+          steps: [
+            "ต้มน้ำในหม้อให้เดือดพล่าน",
+            "ใส่ไข่ไก่ลงต้มจับเวลา 6 นาที แล้วตักแช่น้ำเย็นจัดทันที",
+            "ปอกเปลือก ผ่าครึ่ง วางบนข้าวสวยร้อนๆ เหยาะน้ำปลาและโรยพริกป่น"
+          ],
+          source_ids: ["demo-source-002"]
+        }
+      ],
+      sources: [
+        {
+          source_id: "demo-source-001",
+          document_name: "สูตรตัวอย่างสำหรับทดสอบหน้าจอ",
+          recipe_id: "demo-001",
+          section: "ข้าวผัดไข่สูตรหอพัก",
+          page: 1,
+          source_url: null,
+          excerpt: "สูตรนี้ต้องใช้น้ำมันพืชสำหรับผัดและซีอิ๊วขาวเพื่อเพิ่มรสชาติ หากไม่มีจะไม่สามารถทำตามสูตรต้นฉบับได้"
+        },
+        {
+          source_id: "demo-source-002",
+          document_name: "สูตรตัวอย่างสำหรับทดสอบหน้าจอ",
+          recipe_id: "demo-002",
+          section: "ไข่ต้มยางมะตูม",
+          page: 2,
+          source_url: null,
+          excerpt: "ไข่ต้มยางมะตูม ทานคู่กับข้าวสวยร้อนๆ ปรุงรสเค็มเผ็ดด้วยน้ำปลาพริก"
+        }
+      ],
+      is_mock: true,
+      error_code: null,
+      clarification_options: []
+    }
+  },
+  {
+    id: "scenario_3_equipment_compatible",
+    title: "3. อุปกรณ์ตรงกับสูตร",
+    description: "ระบุเต้าหู้ เห็ด ซีอิ๊ว และเลือกอุปกรณ์ไมโครเวฟ",
+    response: {
+      status: "ok",
+      answer: "พบ 1 เมนูในข้อมูลตัวอย่างที่ตรงกับอุปกรณ์ไมโครเวฟที่คุณเลือก",
+      recipes: [
+        {
+          recipe_id: "demo-003",
+          name: "เต้าหู้นึ่งเห็ดหอมไมโครเวฟ",
+          ingredient_match: "complete",
+          matched_ingredients: ["เต้าหู้ขาว", "เห็ดหอม", "ซีอิ๊วขาว", "น้ำมันงา"],
+          missing_ingredients: [],
+          quantity_check: "unknown",
+          equipment: ["ไมโครเวฟ"],
+          equipment_match: "compatible",
+          servings: "1 ที่",
+          ingredients: [
+            { name: "เต้าหู้ขาว", amount: "1 ก้อน (หั่นชิ้น)" },
+            { name: "เห็ดหอม", amount: "3 ดอก (ซอยบาง)" },
+            { name: "ซีอิ๊วขาว", amount: "1 ช้อนโต๊ะ" },
+            { name: "น้ำมันงา", amount: "1/2 ช้อนชา" }
+          ],
+          steps: [
+            "จัดเรียงเต้าหู้ขาวและเห็ดหอมลงในชามทนความร้อน",
+            "ผสมซีอิ๊วขาวกับน้ำมันงาแล้วราดให้ทั่ว",
+            "ปิดด้วยฝาครอบไมโครเวฟ เวฟที่ความร้อนปานกลาง 3 นาที พร้อมรับประทาน"
+          ],
+          source_ids: ["demo-source-003"]
+        }
+      ],
+      sources: [
+        {
+          source_id: "demo-source-003",
+          document_name: "สูตรตัวอย่างสำหรับทดสอบหน้าจอ",
+          recipe_id: "demo-003",
+          section: "เต้าหู้นึ่งเห็ดหอมไมโครเวฟ",
+          page: 4,
+          source_url: null,
+          excerpt: "เมนูสุขภาพสำหรับเด็กหอ ทำง่ายด้วยไมโครเวฟเพียงเครื่องเดียว ไม่ต้องใช้เตาแก๊ส"
+        }
+      ],
+      is_mock: true,
+      error_code: null,
+      clarification_options: []
+    }
+  },
+  {
+    id: "scenario_4_equipment_incompatible",
+    title: "4. อุปกรณ์ไม่ตรงกับสูตร",
+    description: "ผู้ใช้มีเฉพาะหม้อหุงข้าว แต่สูตรที่พบกำหนดให้ใช้กระทะ",
+    response: {
+      status: "ok",
+      answer: "พบสูตรที่ตรงกับวัตถุดิบ แต่อุปกรณ์ที่สูตรกำหนดไม่ตรงกับอุปกรณ์ที่คุณเลือก",
+      recipes: [
+        {
+          recipe_id: "demo-001",
+          name: "ข้าวผัดไข่สูตรหอพัก",
+          ingredient_match: "missing",
+          matched_ingredients: ["ข้าวสวย", "ไข่ไก่"],
+          missing_ingredients: ["น้ำมันพืช", "ซีอิ๊วขาว"],
+          quantity_check: "unknown",
+          equipment: ["กระทะ"],
+          equipment_match: "incompatible",
+          servings: "1 จาน",
+          ingredients: [
+            { name: "ข้าวสวย", amount: "1 ถ้วย" },
+            { name: "ไข่ไก่", amount: "1 ฟอง" },
+            { name: "น้ำมันพืช", amount: "1 ช้อนโต๊ะ" },
+            { name: "ซีอิ๊วขาว", amount: "1 ช้อนชา" }
+          ],
+          steps: [
+            "ตั้งกระทะใส่น้ำมันพืชให้ร้อนด้วยไฟกลาง",
+            "ตอกไข่ไก่ลงไป ยีพอสุก ใส่ข้าวสวยและปรุงรส"
+          ],
+          source_ids: ["demo-source-001"]
+        }
+      ],
+      sources: [
+        {
+          source_id: "demo-source-001",
+          document_name: "สูตรตัวอย่างสำหรับทดสอบหน้าจอ",
+          recipe_id: "demo-001",
+          section: "ข้าวผัดไข่สูตรหอพัก",
+          page: 1,
+          source_url: null,
+          excerpt: "สูตรนี้ออกแบบสำหรับใช้กระทะตั้งไฟ ไม่แนะนำให้ทำในหม้อหุงข้าวเนื่องจากความร้อนไม่กระจายตัวตามสูตร"
+        }
+      ],
+      is_mock: true,
+      error_code: null,
+      clarification_options: []
+    }
+  },
+  {
+    id: "scenario_5_filter_complete_no_match",
+    title: "5. เปิดตัวกรองครบทุกวัตถุดิบแล้วไม่พบเมนู",
+    description: "ผู้ใช้เปิดตัวกรอง 'แสดงเฉพาะเมนูที่วัตถุดิบครบตามสูตร' แต่วัตถุดิบที่มีไม่ครบสูตรใดเลย",
+    response: {
+      status: "no_match",
+      answer: "ไม่พบสูตรที่ตรงเงื่อนไขในเอกสาร (เนื่องจากเปิดตัวกรอง 'แสดงเฉพาะเมนูที่วัตถุดิบครบตามสูตร' และยังขาดเครื่องปรุงตามสูตร)",
+      recipes: [],
+      sources: [],
+      is_mock: true,
+      error_code: null,
+      clarification_options: []
+    }
+  },
+  {
+    id: "scenario_6_no_match_general",
+    title: "6. ไม่พบสูตรในเอกสาร (No match)",
+    description: "ค้นหาวัตถุดิบที่ไม่มีในคลังข้อมูลตัวอย่าง เช่น แซลมอน วาซาบิ",
+    response: {
+      status: "no_match",
+      answer: "ไม่พบสูตรที่ตรงเงื่อนไขในเอกสารตัวอย่าง กรุณาลองปรับเปลี่ยนวัตถุดิบหรือเงื่อนไขการค้นหา",
+      recipes: [],
+      sources: [],
+      is_mock: true,
+      error_code: null,
+      clarification_options: []
+    }
+  },
+  {
+    id: "scenario_7_insufficient_context",
+    title: "7. ถามโภชนาการหรือข้อมูลที่เอกสารไม่ได้ระบุ",
+    description: "ถามจำนวนแคลอรี่ ปริมาณโปรตีน หรือโซเดียม ซึ่งในสูตรตัวอย่างไม่ได้บันทึกไว้",
+    response: {
+      status: "insufficient_context",
+      answer: "เอกสารตัวอย่างยังไม่มีข้อมูลเพียงพอสำหรับคำถามนี้ (สูตรในคลังตัวอย่างไม่ได้ระบุข้อมูลคุณค่าทางโภชนาการ แคลอรี่ หรือสารอาหาร)",
+      recipes: [],
+      sources: [],
+      is_mock: true,
+      error_code: null,
+      clarification_options: []
+    }
+  },
+  {
+    id: "scenario_8_follow_up_second_recipe",
+    title: "8. ถามต่อเกี่ยวกับเมนูที่สอง",
+    description: "ผู้ใช้ถามว่า 'ขอดูวิธีทำเมนูที่สอง' หรือ 'เมนูที่ 2 ทำยังไง' อิงจากผลการค้นล่าสุด",
+    response: {
+      status: "ok",
+      answer: "รายละเอียดวิธีทำของเมนูที่สอง (ไข่ต้มยางมะตูมคลุกข้าว) จากผลการค้นล่าสุด:",
+      recipes: [
+        {
+          recipe_id: "demo-002",
+          name: "ไข่ต้มยางมะตูมคลุกข้าว",
+          ingredient_match: "missing",
+          matched_ingredients: ["ไข่ไก่", "ข้าวสวย"],
+          missing_ingredients: ["น้ำปลา", "พริกป่น"],
+          quantity_check: "unknown",
+          equipment: ["หม้อ"],
+          equipment_match: "compatible",
+          servings: "1 จาน",
+          ingredients: [
+            { name: "ไข่ไก่", amount: "2 ฟอง" },
+            { name: "ข้าวสวย", amount: "1 ถ้วย" },
+            { name: "น้ำปลา", amount: "1 ช้อนโต๊ะ" },
+            { name: "พริกป่น", amount: "1/2 ช้อนชา" }
+          ],
+          steps: [
+            "ต้มน้ำในหม้อให้เดือดพล่าน",
+            "ใส่ไข่ไก่ลงต้มจับเวลา 6 นาที แล้วตักแช่น้ำเย็นจัดทันที",
+            "ปอกเปลือก ผ่าครึ่ง วางบนข้าวสวยร้อนๆ เหยาะน้ำปลาและโรยพริกป่น"
+          ],
+          source_ids: ["demo-source-002"]
+        }
+      ],
+      sources: [
+        {
+          source_id: "demo-source-002",
+          document_name: "สูตรตัวอย่างสำหรับทดสอบหน้าจอ",
+          recipe_id: "demo-002",
+          section: "ไข่ต้มยางมะตูม",
+          page: 2,
+          source_url: null,
+          excerpt: "เวลา 6 นาทีเป็นหัวใจสำคัญในการทำให้ไข่แดงเยิ้มเป็นยางมะตูมและไข่ขาวสุกนุ่ม"
+        }
+      ],
+      is_mock: true,
+      error_code: null,
+      clarification_options: []
+    }
+  },
+  {
+    id: "scenario_9_ambiguous_follow_up",
+    title: "9. ถามต่อกำกวม ต้องเลือกเมนู (Clarification needed)",
+    description: "ผู้ใช้ถามลอยๆ ว่า 'ใช้เวลากี่นาที' หรือ 'ทำยากไหม' โดยไม่ได้ระบุเมนู",
+    response: {
+      status: "needs_clarification",
+      answer: "หมายถึงเมนูใดในผลการค้นล่าสุด?",
+      recipes: [],
+      sources: [],
+      is_mock: true,
+      error_code: null,
+      clarification_options: [
+        { recipe_id: "demo-001", name: "ข้าวผัดไข่สูตรหอพัก" },
+        { recipe_id: "demo-002", name: "ไข่ต้มยางมะตูมคลุกข้าว" }
+      ]
+    }
+  },
+  {
+    id: "scenario_10_error_retry",
+    title: "10. ข้อผิดพลาดและการลองใหม่ (Error & Retry)",
+    description: "จำลองสถานะระบบขัดข้อง การเชื่อมต่อสะดุด พร้อมปุ่มลองใหม่อีกครั้ง",
+    response: {
+      status: "error",
+      answer: "ขณะนี้ค้นสูตรไม่ได้ กรุณาลองใหม่อีกครั้ง",
+      recipes: [],
+      sources: [],
+      is_mock: true,
+      error_code: "MOCK_SERVICE_TEMPORARY_UNAVAILABLE",
+      clarification_options: []
+    }
+  },
+  {
+    id: "scenario_11_long_text_null_fields",
+    title: "11. ชื่อเมนูและหลักฐานยาว พร้อมบางฟิลด์เป็น null",
+    description: "ทดสอบการจัดการ responsive layout เมื่อชื่อเมนูยาวมาก ไม่มีจำนวนเสิร์ฟ (null) และไม่มี URL (null)",
+    response: {
+      status: "ok",
+      answer: "พบ 1 เมนูตัวอย่างสำหรับทดสอบการแสดงผลข้อความยาวและฟิลด์ค่าว่าง (null values)",
+      recipes: [
+        {
+          recipe_id: "demo-004",
+          name: "ต้มยำปลากระป๋องเห็ดเข็มทองสมุนไพรรวมมิตรสูตรด่วนพิเศษสไตล์ชาวหอพักประหยัดงบประมาณ",
+          ingredient_match: "unknown",
+          matched_ingredients: ["ปลากระป๋อง", "เห็ดเข็มทอง"],
+          missing_ingredients: ["มะนาว", "พริกขี้หนู", "น้ำปลา", "ตะไคร้", "ใบมะกรูด"],
+          quantity_check: "unknown",
+          equipment: ["หม้อ"],
+          equipment_match: "unrestricted",
+          servings: null,
+          ingredients: [
+            { name: "ปลากระป๋องในซอสมะเขือเทศ", amount: "1 กระป๋อง" },
+            { name: "เห็ดเข็มทอง", amount: "100 กรัม" },
+            { name: "ตะไคร้ทุบ", amount: "1 ต้น" },
+            { name: "ใบมะกรูดฉีก", amount: "3 ใบ" },
+            { name: "พริกขี้หนูบุบ", amount: "5 เม็ด" },
+            { name: "น้ำปลา", amount: "1.5 ช้อนโต๊ะ" },
+            { name: "น้ำมะนาว", amount: "1.5 ช้อนโต๊ะ" }
+          ],
+          steps: [
+            "ต้มน้ำสะอาดในหม้อประมาณ 1 ถ้วยครึ่ง ใส่ตะไคร้และใบมะกรูดลงต้มจนมีกลิ่นหอม",
+            "เทปลากระป๋องลงไปทั้งซอส รอจนเดือดเบาๆ ห้ามคนแรงเพื่อไม่ให้เนื้อปลาเละ",
+            "ใส่เห็ดเข็มทองลงไป ต้มต่อประมาณ 1-2 นาทีจนเห็ดสุกนิ่ม",
+            "ปิดไฟเตา จากนั้นปรุงรสด้วยน้ำปลา พริกขี้หนูบุบ และน้ำมะนาวตามลำดับ ชิมรสชาติให้ได้เปรี้ยวเค็มเผ็ดตามชอบ"
+          ],
+          source_ids: ["demo-source-004"]
+        }
+      ],
+      sources: [
+        {
+          source_id: "demo-source-004",
+          document_name: "สูตรตัวอย่างสำหรับทดสอบหน้าจอ",
+          recipe_id: "demo-004",
+          section: "ต้มยำปลากระป๋องสูตรประหยัด",
+          page: null,
+          source_url: null,
+          excerpt: "ข้อความหลักฐานตัวอย่างขนาดยาวเพื่อทดสอบความปลอดภัยและการแสดงผล plain text: การใส่น้ำมะนาวควรใส่หลังจากปิดเตาแล้วเท่านั้น เพื่อป้องกันไม่ให้น้ำแกงมีรสขมฝาด และการใช้ปลากระป๋องให้เทน้ำซอสลงไปด้วยเพื่อให้รสต้มยำเข้มข้นกลมกล่อมโดยไม่ต้องใช้น้ำซุปกระดูกหมู"
+        }
+      ],
+      is_mock: true,
+      error_code: null,
+      clarification_options: []
+    }
+  }
+];
+
+export function resolveMockQuery(
+  query: string,
+  ingredients: string,
+  equipment: string[],
+  requireAll: boolean,
+  selectedRecipeId: string | null
+): RAGResponse {
+  const full = `${query} ${ingredients} ${equipment.join(" ")}`.toLowerCase();
+
+  // Error simulation
+  if (["error", "จำลอง error", "ข้อผิดพลาด", "พัง"].some(w => full.includes(w))) {
+    return SCENARIOS.find(s => s.id === "scenario_10_error_retry")!.response;
+  }
+
+  // Filter require all with missing seasonings
+  if (requireAll && !["ซีอิ๊วขาว", "น้ำมันพืช", "น้ำปลา"].some(w => full.includes(w))) {
+    return SCENARIOS.find(s => s.id === "scenario_5_filter_complete_no_match")!.response;
+  }
+
+  // Ambiguous follow up
+  if (["กี่นาที", "ทำยากไหม", "ใช้เวลาเท่าไหร่", "ทำยังไงนะ"].some(w => query.includes(w))) {
+    if (!selectedRecipeId) {
+      return SCENARIOS.find(s => s.id === "scenario_9_ambiguous_follow_up")!.response;
+    }
+  }
+
+  // Nutrition / insufficient context
+  if (["แคลอรี่", "กี่แคล", "โปรตีน", "โซเดียม", "สารอาหาร", "โภชนาการ"].some(w => query.includes(w))) {
+    return SCENARIOS.find(s => s.id === "scenario_7_insufficient_context")!.response;
+  }
+
+  // Follow-up second recipe
+  if (["เมนูที่สอง", "เมนูที่ 2", "เมนู 2", "จานที่สอง"].some(w => query.includes(w)) || selectedRecipeId === "demo-002") {
+    return SCENARIOS.find(s => s.id === "scenario_8_follow_up_second_recipe")!.response;
+  }
+
+  if (selectedRecipeId === "demo-001") {
+    return SCENARIOS.find(s => s.id === "scenario_1_complete_unknown_qty")!.response;
+  }
+
+  // Long text demo
+  if (["ขอดูขั้นตอนของเมนูตัวอย่าง", "เมนูตัวอย่าง", "สูตรยาว", "null", "ปลากระป๋อง"].some(w => full.includes(w))) {
+    return SCENARIOS.find(s => s.id === "scenario_11_long_text_null_fields")!.response;
+  }
+
+  // Incompatible equipment
+  if (equipment.includes("หม้อหุงข้าว") && !equipment.includes("กระทะ") && full.includes("ข้าวผัด")) {
+    return SCENARIOS.find(s => s.id === "scenario_4_equipment_incompatible")!.response;
+  }
+
+  // Microwave compatible
+  if (equipment.includes("ไมโครเวฟ") || full.includes("เต้าหู้") || full.includes("เห็ด")) {
+    return SCENARIOS.find(s => s.id === "scenario_3_equipment_compatible")!.response;
+  }
+
+  // General no match
+  if (["แซลมอน", "วาซาบิ", "ชีสเค้ก", "สปาเก็ตตี้", "ทรัฟเฟิล"].some(w => full.includes(w))) {
+    return SCENARIOS.find(s => s.id === "scenario_6_no_match_general")!.response;
+  }
+
+  // Complete
+  if (full.includes("ไข่") && full.includes("ข้าว") && full.includes("ต้นหอม") && full.includes("น้ำมัน") && full.includes("ซีอิ๊ว")) {
+    return SCENARIOS.find(s => s.id === "scenario_1_complete_unknown_qty")!.response;
+  }
+
+  // Missing seasonings
+  if (full.includes("ไข่") || full.includes("ข้าว")) {
+    return SCENARIOS.find(s => s.id === "scenario_2_missing_condiments")!.response;
+  }
+
+  // Fallback
+  return {
+    status: "no_match",
+    answer: "โหมดตัวอย่างยังไม่รองรับคำถามนี้ (ในโหมดตัวอย่างมีสูตรจำลองสำหรับ: ไข่, ข้าวสวย, ต้นหอม, เต้าหู้, เห็ด, ปลากระป๋อง)",
+    recipes: [],
+    sources: [],
+    is_mock: true,
+    error_code: null,
+    clarification_options: []
+  };
+}

@@ -8,3 +8,5 @@ pytest-cache-files-*/
 .cache/
 test-results.local.json
 groq_diagnostics.local.json
+ui_live_results.local.json
+ui_live_logs.local.txt

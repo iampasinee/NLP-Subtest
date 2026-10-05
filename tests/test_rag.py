@@ -161,7 +161,7 @@ def test_no_key_ui():
     at.chat_input[0].set_value('มีไข่ ข้าวสวย').run()
     assert not at.exception
     assert 'ยังไม่ได้เรียก LLM' in at.session_state['messages'][-1]['content']
-    at.sidebar.button[0].click().run()
+    at.button(key='reset_header').click().run()
     assert at.session_state['messages'] == []
 
 @pytest.mark.parametrize('failure', ['authentication', 'timeout', 'rate_limit', 'connection', 'success'])

@@ -1,0 +1,6 @@
+{
+  "name": "มีอะไร ทำอะไรดี",
+  "description": "ค้นเมนูจากวัตถุดิบที่มี พร้อมสูตรและแหล่งอ้างอิง",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
