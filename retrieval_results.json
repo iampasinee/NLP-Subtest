@@ -1,0 +1,133 @@
+{
+  "mode": "real_semantic_retrieval_no_llm",
+  "passed": 20,
+  "total": 20,
+  "cases": [
+    {
+      "id": "T01",
+      "actual_recipe_ids": [
+        "R01",
+        "R02",
+        "R05"
+      ],
+      "passed": true
+    },
+    {
+      "id": "T02",
+      "actual_recipe_ids": [
+        "R01"
+      ],
+      "passed": true
+    },
+    {
+      "id": "T03",
+      "actual_recipe_ids": [
+        "R02"
+      ],
+      "passed": true
+    },
+    {
+      "id": "T04",
+      "actual_recipe_ids": [
+        "R04"
+      ],
+      "passed": true
+    },
+    {
+      "id": "T05",
+      "actual_recipe_ids": [],
+      "passed": true
+    },
+    {
+      "id": "T06",
+      "actual_recipe_ids": [
+        "R04"
+      ],
+      "passed": true
+    },
+    {
+      "id": "T07",
+      "actual_recipe_ids": [
+        "R09"
+      ],
+      "passed": true
+    },
+    {
+      "id": "T08",
+      "actual_recipe_ids": [
+        "R04"
+      ],
+      "passed": true
+    },
+    {
+      "id": "T09",
+      "actual_recipe_ids": [],
+      "passed": true
+    },
+    {
+      "id": "T10",
+      "actual_recipe_ids": [],
+      "passed": true
+    },
+    {
+      "id": "T11",
+      "actual_recipe_ids": [],
+      "passed": true
+    },
+    {
+      "id": "T12",
+      "actual_recipe_ids": [],
+      "passed": true
+    },
+    {
+      "id": "T13",
+      "actual_recipe_ids": [],
+      "passed": true
+    },
+    {
+      "id": "T14",
+      "actual_recipe_ids": [
+        "R01"
+      ],
+      "passed": true
+    },
+    {
+      "id": "T15",
+      "actual_recipe_ids": [],
+      "passed": true
+    },
+    {
+      "id": "T16",
+      "actual_recipe_ids": [
+        "R20"
+      ],
+      "passed": true
+    },
+    {
+      "id": "T17",
+      "actual_recipe_ids": [],
+      "passed": true
+    },
+    {
+      "id": "T18",
+      "actual_recipe_ids": [
+        "R15"
+      ],
+      "passed": true
+    },
+    {
+      "id": "T19",
+      "actual_recipe_ids": [
+        "R18"
+      ],
+      "passed": true
+    },
+    {
+      "id": "T20",
+      "actual_recipe_ids": [
+        "R20"
+      ],
+      "passed": true
+    }
+  ]
+}
